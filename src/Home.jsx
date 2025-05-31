@@ -12,7 +12,6 @@ const Home = () => {
     <div className="hero-content">
       <img src="/Oxbank.png" alt="OXBANK Logo" className="hero-logo" />
       <h1>Welcome to OXBANK
-        fghfg
       </h1>
       <p>Your trusted partner for secure,<span className='hero-down-text'> easy, and modern banking.</span></p>
             <Link to="/Signup" className="hero-btn">Get Started</Link>
