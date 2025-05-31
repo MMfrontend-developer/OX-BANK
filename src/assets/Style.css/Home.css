@@ -1,0 +1,114 @@
+*{
+    margin: 0;
+    padding: 0;
+}
+body {
+    font-family: 'Poppins', sans-serif;
+    line-height: 1.6;
+}
+.hero {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 70vh;
+    background: linear-gradient(120deg, #bac9da 60%, #e0e0e0 100%);
+    text-align: center;
+}
+
+.hero-content {
+    max-width: 500px;
+    margin: auto;
+}
+
+.hero-logo {
+    width: 25rem;  
+    margin-top: -5rem;
+}
+
+.hero h1 {
+    font-size: 2.5rem;
+    color: #551A8B;
+     margin-top: -7rem;
+    font-family: 'Poppins', sans-serif;
+}
+
+.hero p {
+    margin-bottom: 1.5rem;
+    font-size: 1.2rem;
+    color: #333;
+}
+
+.hero-btn {
+    display: inline-block;
+    padding: 0.75rem 2rem;
+    background: #551A8B;
+    color: #fff;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 1.1rem;
+    font-weight: 600;
+    transition: background 0.3s;
+}
+
+.hero-btn:hover {
+    background: orangered;
+}
+/* Hero section styles already present above */
+
+/* Features Section */
+.features {
+    background: #f6f6f6;
+    padding: 3rem 1rem 4rem 1rem;
+    text-align: center;
+}
+
+.features h2 {
+    font-size: 2rem;
+    color: #551A8B;
+    margin-bottom: 2rem;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 700;
+}
+
+.features-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2rem;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.feature-item {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 4px 4px 12px 4px rgba(85,26,139,0.07);
+    padding: 2rem 1.5rem;
+    flex: 1 1 200px;
+    max-width: 220px;
+    min-width: 180px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.feature-item:hover {
+    transform: translateY(-8px) scale(1.03);
+    box-shadow: 0 6px 24px rgba(255,69,0,0.12);
+}
+
+.feature-item h3 {
+    color: #551A8B;
+    margin-bottom: 0.7rem;
+    font-size: 1.2rem;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+}
+
+.feature-item p {
+    color: #444;
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+
+}

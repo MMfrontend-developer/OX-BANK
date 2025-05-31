@@ -1,0 +1,150 @@
+.about-hero {
+    background: linear-gradient(120deg, #551A8B 60%, #bac9da 100%);
+    color: #fff;
+    padding: 4rem 1rem 3rem 1rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.about-hero-content {
+    max-width: 700px;
+    margin: 0 auto;
+    z-index: 2;
+    position: relative;
+}
+
+.about-hero h1 {
+    font-size: 2.8rem;
+    font-family: 'Poppins', sans-serif;
+    margin-bottom: 1rem;
+    letter-spacing: 1px;
+}
+
+.about-hero p {
+    font-size: 1.3rem;
+    font-weight: 400;
+    line-height: 1.7;
+    margin-bottom: 0;
+}
+
+.about-main {
+    background: #f6f6f6;
+    padding: 3rem 0 2rem 0;
+}
+
+.about-main-content {
+    max-width: 900px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 2px 24px rgba(85,26,139,0.09);
+    padding: 2.5rem 2rem;
+}
+
+.about-main-content h2 {
+    color: #551A8B;
+    font-size: 2rem;
+    margin-bottom: 1rem;
+    font-family: 'Poppins', sans-serif;
+}
+
+.about-main-content p {
+    color: #444;
+    font-size: 1.1rem;
+    margin-bottom: 2rem;
+    line-height: 1.7;
+}
+
+.about-highlights {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 2.5rem;
+}
+
+.highlight-card {
+    background: #d0ced4;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(85,26,139,0.06);
+    padding: 1.5rem 1.2rem;
+    flex: 1 1 220px;
+    min-width: 200px;
+    max-width: 270px;
+    text-align: left;
+}
+
+.highlight-card h3 {
+    color: #551A8B;
+    font-size: 1.15rem;
+    margin-bottom: 0.7rem;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+}
+
+.highlight-card p, .highlight-card ul {
+    color: #141313;
+    font-size: 1rem;
+    line-height: 1.5;
+    margin: 0;
+    padding: 0;
+}
+
+.highlight-card ul {
+    list-style: disc inside;
+    margin-top: 0.5rem;
+}
+
+.about-extra {
+    margin-top: 2.5rem;
+}
+
+.about-extra h2 {
+    color: #551A8B;
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+    font-family: 'Poppins', sans-serif;
+}
+
+.about-extra ul {
+    color: #2b2929;
+    font-size: 1rem;
+    line-height: 1.7;
+    list-style: disc inside;
+    padding-left: 0;
+    margin: 0;
+}
+
+@media (max-width: 900px) {
+    .about-highlights {
+        flex-direction: column;
+        gap: 1.2rem;
+        align-items: center;
+    }
+    .highlight-card{
+        max-width: 100%;
+    }
+    .highlight{
+         width: 96%;
+    }
+    .about-main-content {
+        padding: 1.2rem 0.5rem;
+    }
+}
+
+@media (max-width: 600px) {
+    .about-hero h1 {
+        font-size: 1.5rem;
+    }
+    .about-hero p {
+        font-size: 1rem;
+    }
+    .about-main-content h2 {
+        font-size: 1.1rem;
+    }
+    .highlight-card {
+        padding: 1rem 0.5rem;
+        font-size: 0.98rem;
+    }
+}

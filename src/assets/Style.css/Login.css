@@ -1,0 +1,117 @@
+.INPUT {
+  width: 50%;
+  padding: 10px;
+  border: 50% solid #ccc;
+  border-radius: 10px;
+}
+.form-group{
+    margin-top: 20px;
+    justify-content: center;
+    margin-left: 30%;
+}
+label{
+    font-size: larger;
+    padding: 10px;    
+}
+
+.login-section {
+    min-height: 70vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f6f6f6;
+    padding: 2rem 0;
+}
+
+.login-content {
+    background: #fff;
+    padding: 2.5rem 2rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 16px rgba(85,26,139,0.08);
+    max-width: 350px;
+    width: 100%;
+    text-align: center;
+}
+
+.login-content h2 {
+    color: #551A8B;
+    margin-bottom: 1.5rem;
+    font-family: 'Poppins', sans-serif;
+    font-size: 2rem;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+    margin-bottom: 1rem;
+}
+
+.login-form label {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    font-size: 1rem;
+    color: #551A8B;
+    font-weight: 500;
+    margin-bottom: 0.2rem;
+}
+
+.login-input {
+    width: 100%;
+    padding: 0.7rem;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    margin-top: 0.3rem;
+    font-size: 1rem;
+    font-family: 'Poppins', sans-serif;
+}
+
+.login-input:focus {
+    border-color: #551A8B;
+    outline: none;
+}
+
+.login-btn {
+    background: #551A8B;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.8rem 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.login-btn:hover {
+    background: orangered;
+}
+
+.login-content p {
+    margin-top: 1rem;
+    font-size: 0.98rem;
+}
+
+.login-content a {
+    color: #551A8B;
+    text-decoration: underline;
+    font-weight: 500;
+}
+
+.login-content a:hover{
+    color: orangered;
+}
+
+@media (max-width: 600px) {
+    .login-content {
+        max-width: 98vw;
+    }
+    .login-input {
+        font-size: 0.98rem;
+        padding: 0.6rem;
+    }
+    .login-content h2 {
+        font-size: 1.3rem;
+    }
+}

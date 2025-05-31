@@ -1,0 +1,132 @@
+/* DARK MODE OVERRIDES */
+body.dark {
+  background: #181824 !important;
+  color: #f6f6f6 !important;
+}
+
+/* Main content backgrounds */
+body.dark .dashboard-section,
+body.dark .services-section,
+body.dark .about-hero,
+body.dark .about-main,
+body.dark .services-content,
+body.dark .signup-section,
+body.dark .login-section {
+  background: #181824 !important;
+  color: #f6f6f6 !important;
+}
+
+/* Cards and content blocks */
+body.dark .dashboard-card,
+body.dark .about-main-content,
+body.dark .signup-content,
+body.dark .login-content {
+  background: #23243a !important;
+  color: #f6f6f6 !important;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.18) !important;
+}
+
+/* Header and Footer */
+body.dark .header,
+body.dark .footer {
+  background: #1d1d29 !important;
+  color: #f6f6f6 !important;
+  border-top: 1px solid #23243a !important;
+  border-bottom: 1px solid #23243a !important;
+}
+
+/* Headings and highlights */
+body.dark h1,
+body.dark h2,
+body.dark h3,
+body.dark .highlight {
+  color: #ff6600 !important;
+}
+
+/* Buttons */
+body.dark .theme-toggle {
+  background: #fff !important;
+  color: #551A8B !important;
+}
+body.dark .btn,
+body.dark button,
+body.dark .hero-btn {
+  background: #ff6600 !important;
+  color: #fff !important;
+  border: none !important;
+}
+
+/* Inputs and forms */
+body.dark input,
+body.dark textarea,
+body.dark select {
+  background: #23243a !important;
+  color: #f6f6f6 !important;
+  border: 1px solid #f5eded !important;
+}
+
+body.dark li{ color: white !important
+}
+
+body.dark .highlight li{ color: rgb(9, 8, 8) !important
+}
+
+body.dark .balance{ color: white !important
+}
+
+body.dark input::placeholder,
+body.dark textarea::placeholder {
+  color: #aaa !important;
+}
+
+/* Links */
+body.dark a {
+  color: #ff6600 !important;
+  text-decoration: none;
+}
+
+/* Optional: Card hover effect */
+body.dark .dashboard-card:hover,
+/* body.dark .services-content:hover, */
+body.dark .about-main-content:hover {
+  box-shadow: 0 4px 24px rgba(255,102,0,0.12) !important;
+}
+
+body.dark .hero {
+    background: linear-gradient(120deg, #141520 60%, #181824 100%) !important;
+}
+
+body.dark .hero p{
+ color: #ff6600 !important;
+}
+
+body.dark .feature-item p{
+ color: #e0dbd8 !important;
+}
+
+body.dark .features {
+    background: #23243a !important;
+}
+
+body.dark .feature-item {
+    background: #181824 !important;
+    color: #f6f6f6 !important;
+    box-shadow: 0 2px 12px 0 rgba(0,0,0,0.18) !important;
+}
+
+body.dark .features h2,
+body.dark p.services-intro,
+body.dark .feature-item h3{
+    color: #ff6600 !important;
+}
+
+body.dark .about-main-content .about-intro {
+  color: #ff6600;
+}
+
+body.dark label{
+  color: #ff6600;
+}
+body.dark .date{
+  color: white;
+}
