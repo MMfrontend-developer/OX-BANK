@@ -81,6 +81,7 @@ label{
     font-size: 1.1rem;
     font-weight: 600;
     cursor: pointer;
+    margin-left: 20px;
     transition: background 0.2s;
 }
 
@@ -101,6 +102,34 @@ label{
 
 .login-content a:hover{
     color: orangered;
+}
+
+.login-input {
+  width: 100%;
+  max-width: 350px;
+  margin: 0 auto;
+  display: block;
+  box-sizing: border-box;
+}
+
+.login-form label {
+  display: block;
+  width: 100%;
+  max-width: 350px;
+  margin: 0 auto 1.2rem auto;
+  position: relative;
+}
+
+.password-eye {
+  position: absolute;
+  right: 29px;
+  top: 62%;
+  transform: translateY(-40%);
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  height: 35px;
 }
 
 @media (max-width: 600px) {

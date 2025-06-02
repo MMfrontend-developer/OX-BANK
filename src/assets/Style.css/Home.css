@@ -1,4 +1,4 @@
-*{
+ *{
     margin: 0;
     padding: 0;
 }
@@ -7,52 +7,63 @@ body {
     line-height: 1.6;
 }
 .hero {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 70vh;
-    background: linear-gradient(120deg, #bac9da 60%, #e0e0e0 100%);
-    text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+  width: 100%;
+  background: linear-gradient(120deg, #bac9da 60%, #e0e0e0 100%);
+  text-align: center;
 }
 
 .hero-content {
-    max-width: 500px;
-    margin: auto;
+  max-width: 420px;
+  width: 100%;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem; /* Smooth spacing instead of negative margins */
 }
 
 .hero-logo {
-    width: 25rem;  
-    margin-top: -5rem;
+  width: 25rem;
+  max-width: 100%;
+  display: block;
+  margin-top: -5rem;
+  margin-bottom: 0.5rem; /* Small space below logo */
 }
 
 .hero h1 {
-    font-size: 2.5rem;
-    color: #551A8B;
-     margin-top: -7rem;
-    font-family: 'Poppins', sans-serif;
+  font-size: 2rem;
+  margin-top: -8rem;
+  color: #551A8B;
+  font-family: 'Poppins', sans-serif;
 }
 
 .hero p {
-    margin-bottom: 1.5rem;
-    font-size: 1.2rem;
-    color: #333;
+  margin: 0.5rem 0 1.5rem;
+  font-size: 1.3rem;
+  line-height: 1.8;
+  color: #333;
 }
 
 .hero-btn {
-    display: inline-block;
-    padding: 0.75rem 2rem;
-    background: #551A8B;
-    color: #fff;
-    border-radius: 8px;
-    text-decoration: none;
-    font-size: 1.1rem;
-    font-weight: 600;
-    transition: background 0.3s;
+  display: inline-block;
+  padding: 0.75rem 2rem;
+  background: #551A8B;
+  color: #fff;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 1.1rem;
+  font-weight: 600;
+  transition: background 0.3s;
 }
 
 .hero-btn:hover {
-    background: orangered;
+  background: orangered;
 }
+
 /* Hero section styles already present above */
 
 /* Features Section */
@@ -84,9 +95,14 @@ body {
     border-radius: 12px;
     box-shadow: 4px 4px 12px 4px rgba(85,26,139,0.07);
     padding: 2rem 1.5rem;
-    flex: 1 1 200px;
-    max-width: 220px;
+    max-width: 300px;
     min-width: 180px;
+    min-height: 200px;
+    display: flex;
+     flex: 1 1 220px;
+    flex-direction: column;
+    justify-content: space-between;
+    box-sizing: border-box;
     transition: transform 0.2s, box-shadow 0.2s;
 }
 
@@ -107,8 +123,6 @@ body {
     color: #444;
     font-size: 1rem;
     line-height: 1.5;
+        flex-grow: 1;
 }
 
-@media (max-width: 760px) {
-
-}

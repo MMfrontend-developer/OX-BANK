@@ -41,7 +41,8 @@
     margin-bottom: 0.2rem;
 }
 
-.signup-form input {
+.signup-form input,
+.signup-form .login-input {
     width: 100%;
     padding: 0.7rem;
     border-radius: 6px;
@@ -49,7 +50,9 @@
     margin-top: 0.3rem;
     font-size: 1rem;
     font-family: 'Poppins', sans-serif;
+    box-sizing: border-box;
 }
+
 
 .signup-form input:focus {
     border-color: #551A8B;
@@ -86,6 +89,27 @@
 .signup-content a:hover{
 color: orangered;
 }
+
+
+.login-form label {
+  display: block;
+  width: 100%;
+  max-width: 350px;
+  margin: 0 auto 1.2rem auto;
+  position: relative;
+}
+
+/* .password-eye {
+  position: absolute;
+  right: 29px;
+  top: 62%;
+  transform: translateY(-40%);
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  height: 35px;
+} */
 
 @media (max-width: 600px) {
   .signup-content {
