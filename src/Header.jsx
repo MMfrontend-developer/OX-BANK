@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
 import './assets/Style.css/Header.css';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 export const Header = ({ theme, toggleTheme }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+  const location = useLocation();
+  const onDashboard = location.pathname === '/Dashboard';
+
+  // Only show Login if NOT (logged in AND on dashboard)
+  const showLogin = !(isLoggedIn && onDashboard);
 
   return (
     <header className="header">
@@ -24,33 +29,33 @@ export const Header = ({ theme, toggleTheme }) => {
         <Link to={'/'} onClick={() => setMenuOpen(false)}>Home</Link>
         <Link to={'/Services'} onClick={() => setMenuOpen(false)}>Services</Link>
         <Link to={'/About'} onClick={() => setMenuOpen(false)}>About</Link>
-          </nav>
-        <div className={`header-actions ${menuOpen ? 'open' : ''}`}>
-          <div className='btn-log'>
-            {!isLoggedIn && (
-              <Link to={'/Login'} onClick={() => setMenuOpen(false)}>
-                <button className='btn'>Login</button>
-              </Link>
-            )}
-           </div>
-          <button
-            onClick={toggleTheme}
-            className="theme-toggle"
-            style={{
-              background: theme === 'light' ? '#551A8B' : '#fff',
-              color: theme === 'light' ? '#fff' : '#551A8B',
-              borderRadius: '8px',
-              border: 'none',
-              fontWeight: "700",
-              fontSize: '1rem',
-              padding: '10px 10px',
-              cursor: 'pointer',
-              marginRight: "5px",
-            }}
-          >
-            {theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'}
-          </button>
+      </nav>
+      <div className={`header-actions ${menuOpen ? 'open' : ''}`}>
+        <div className='btn-log'>
+          {showLogin && (
+            <Link to={'/Login'} onClick={() => setMenuOpen(false)}>
+              <button className='btn'>Login</button>
+            </Link>
+          )}
         </div>
+        <button
+          onClick={toggleTheme}
+          className="theme-toggle"
+          style={{
+            background: theme === 'light' ? '#551A8B' : '#fff',
+            color: theme === 'light' ? '#fff' : '#551A8B',
+            borderRadius: '8px',
+            border: 'none',
+            fontWeight: "700",
+            fontSize: '1rem',
+            padding: '10px 10px',
+            cursor: 'pointer',
+            marginRight: "5px",
+          }}
+        >
+          {theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'}
+        </button>
+      </div>
     </header>
   );
 };

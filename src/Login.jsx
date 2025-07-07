@@ -41,6 +41,7 @@ const Login = () => {
       signupData.email === form.email &&
       signupData.password === form.password
     ) {
+       localStorage.setItem('isLoggedIn', 'true');
       alert('Login successful!');
       navigate('/Dashboard'); // Redirect to dashboard
     } else {
