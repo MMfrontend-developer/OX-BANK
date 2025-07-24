@@ -3,7 +3,7 @@ import React from 'react'
 import "./assets/Style.css/Home.css"
 import Footer from './Footer'
 import { Link } from 'react-router'
-
+ 
 const Home = () => {
  return (
     <div> 

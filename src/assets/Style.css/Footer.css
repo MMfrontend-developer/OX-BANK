@@ -55,4 +55,22 @@
     margin-top: 1.5rem;
     font-size: 0.95rem;
     opacity: 0.8;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.footer-credit {
+    margin-top: 0.5rem;
+}
+
+.footer-credit a {
+    color: #fff;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.footer-credit a:hover {
+    color: orangered;
+    text-decoration: underline;
 }

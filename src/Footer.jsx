@@ -16,10 +16,13 @@ const Footer = () => (
       <div className="footer-contact">
         <span>Email: support@oxbank.com</span>
         <span>Phone: +234-7083-5283-77</span>
+        <p className="footer-credit">
+        <a href="https://github.com/MMfrontend-developer" target="_blank" rel="noopener noreferrer">Designed by MM</a>
+      </p>
       </div>
     </div>
     <div className="footer-bottom">
-      &copy;     {new Date().getFullYear()} OXBANK. All rights reserved.
+      &copy; {new Date().getFullYear()} OXBANK. All rights reserved.
     </div>
   </footer>
 );
