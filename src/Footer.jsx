@@ -17,7 +17,7 @@ const Footer = () => (
         <span>Email: support@oxbank.com</span>
         <span>Phone: +234-7083-5283-77</span>
         <p className="footer-credit">
-        <a href="https://github.com/MMfrontend-developer" target="_blank" rel="noopener noreferrer">Designed by MM</a>
+        <a href="https://github.com/MMfrontend-developer" target="_blank" rel="noopener noreferrer">Designed by M-M</a>
       </p>
       </div>
     </div>
