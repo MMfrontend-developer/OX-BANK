@@ -45,8 +45,3 @@ const Home = () => {
 export default Home
 
 
- {/* <p>
-            Open an account in minutes and take control of your finances with our secure and smart banking solutions.
-          </p> */}
-
-           {/* <h1> Bank Smarter, Live Better</h1> */}
