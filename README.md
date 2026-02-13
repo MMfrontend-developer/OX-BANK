@@ -1,12 +1,45 @@
-# React + Vite
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-Currently, two official plugins are available:
+OxBank A Modern FinTech Web & Mobile App
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+A modern, responsive FinTech web/mobile application built with React.
+This project simulates a digital banking platform featuring a clean dashboard interface, and a scalable Light/Dark theme system.
 
-## Expanding the ESLint configuration
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+✨ Features
+
+💼 Modern FinTech dashboard UI
+
+📱 Fully responsive (Mobile + Desktop)
+
+🌗 Light & Dark mode toggle
+
+🎨 Scalable external CSS architecture
+
+⚛️ Component-based structure
+
+🔄 Smooth UI transitions
+
+🧩 Clean and reusable codebase
+
+🛠 Tech Stack
+
+React (Functional Components & Hooks)
+
+JavaScript (ES6+)
+
+External CSS Architecture
+
+Responsive Design (Flexbox / Media Queries)
+
+🌗 Theme System (Light/Dark Mode)
+
+The application includes a dynamic theme toggle system:
+
+Global theme state management
+
+Persistent user preference (if you used localStorage, keep this)
+
+Scalable structure for future theme expansion
+
+Clean CSS separation for maintainability
