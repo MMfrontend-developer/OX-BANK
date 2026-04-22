@@ -20,37 +20,41 @@ export const Header = ({ theme, toggleTheme }) => {
   // Purely based on login status
   const showLogin = !isLoggedIn;
 
-  const renderAuthContent = () => (
-    <div className='btn-log'>
-      {showLogin ? (
-        <Link to={'/Login'} onClick={() => setMenuOpen(false)}>
-          <button className='btn btn-primary'>Sign In</button>
-        </Link>
-      ) : (
-        <div className="user-profile-dropdown">
-          <div className="avatar">
-            {user.name.charAt(0).toUpperCase()}
-          </div>
-          <div className="dropdown-menu glass">
-            <div className="dropdown-header">
-              <p className="user-name">{user.name}</p>
-              <p className="user-email">{user.email}</p>
+  const renderAuthContent = (isMobileMenu = false) => {
+    if (isMobileMenu && isLoggedIn) return null;
+    
+    return (
+      <div className={`btn-log ${isMobileMenu ? 'mobile-menu-auth' : 'header-auth'}`}>
+        {showLogin ? (
+          <Link to={'/Login'} className="auth-link" onClick={() => setMenuOpen(false)}>
+            <button className='btn btn-primary'>Sign In</button>
+          </Link>
+        ) : (
+          <div className="user-profile-dropdown">
+            <div className="avatar">
+              {user.name.charAt(0).toUpperCase()}
             </div>
-            <hr className="dropdown-divider" />
-            <Link to="/Dashboard" className="dropdown-item" onClick={() => setMenuOpen(false)}>
-              Dashboard
-            </Link>
-            <Link to="/profile" className="dropdown-item" onClick={() => setMenuOpen(false)}>
-              Profile Settings
-            </Link>
-            <Link to="/Logout" className="dropdown-item logout-link" onClick={() => setMenuOpen(false)}>
-              Log Out
-            </Link>
+            <div className="dropdown-menu glass">
+              <div className="dropdown-header">
+                <p className="user-name">{user.name}</p>
+                <p className="user-email">{user.email}</p>
+              </div>
+              <hr className="dropdown-divider" />
+              <Link to="/Dashboard" className="dropdown-item" onClick={() => setMenuOpen(false)}>
+                Dashboard
+              </Link>
+              <Link to="/profile" className="dropdown-item" onClick={() => setMenuOpen(false)}>
+                Profile Settings
+              </Link>
+              <Link to="/Logout" className="dropdown-item logout-link" onClick={() => setMenuOpen(false)}>
+                Log Out
+              </Link>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
+        )}
+      </div>
+    );
+  };
 
   return (
     <header className="header glass">
@@ -75,10 +79,12 @@ export const Header = ({ theme, toggleTheme }) => {
               Dashboard
             </Link>
           )}
-          {/* Auth button inside mobile menu */}
-          <div className="mobile-auth-container">
-            {renderAuthContent()}
-          </div>
+          {/* Auth button inside mobile menu - show only if not logged in (avatar is in top bar) */}
+          {!isLoggedIn && (
+            <div className="mobile-auth-container">
+              {renderAuthContent(true)}
+            </div>
+          )}
         </nav>
 
         <div className={`header-actions ${menuOpen ? 'open' : ''}`}>
@@ -90,9 +96,9 @@ export const Header = ({ theme, toggleTheme }) => {
             {theme === 'light' ? '🌙' : '☀️'}
           </button>
           
-          {/* Auth button for desktop header */}
-          <div className="desktop-auth-container">
-            {renderAuthContent()}
+          {/* Auth button for desktop/mobile header - show only avatar on mobile */}
+          <div className="header-auth-container">
+            {renderAuthContent(false)}
           </div>
         </div>
 
