@@ -76,7 +76,7 @@
     margin-top: 1rem;
 }
 
-.desktop-auth-container {
+.header-auth-container {
     display: block;
 }
 
@@ -157,6 +157,8 @@
     transition: all 0.3s ease;
     border: 1px solid var(--border-glass);
     box-shadow: var(--shadow-lg);
+    z-index: 5000;
+    background: var(--bg-card); /* Ensure solid background */
 }
 
 .dropdown-header {
@@ -298,7 +300,12 @@
         display: block;
     }
 
-    .desktop-auth-container {
+    .header-auth-container {
+        display: block; /* Keep visible on mobile header */
+    }
+
+    /* Hide the Sign In button specifically in the header on mobile, but keep avatar */
+    .header-auth .auth-link {
         display: none;
     }
 
