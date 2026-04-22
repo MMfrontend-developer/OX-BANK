@@ -1,28 +1,8 @@
 import React, { useState } from 'react';
-// import { Header } from './Header';
 import Footer from './Footer';
 import './assets/Style.css/Login.css';
-import { useNavigate } from 'react-router';
-
-const EyeIcon = ({ visible }) => (
-  visible ? (
-    // Eye open SVG
-    <svg width="36" height="26" viewBox="0 0 24 24" fill="none"
-      stroke="#551A8B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      style={{ display: 'block' }}>
-      <ellipse cx="12" cy="12" rx="9" ry="5" />
-      <circle cx="12" cy="12" r="2" />
-    </svg>
-  ) : (
-    // Eye closed SVG
-    <svg width="32" height="26" viewBox="0 0 24 24" fill="none"
-      stroke="#551A8B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      style={{ display: 'block' }}>
-      <ellipse cx="12" cy="12" rx="9" ry="5" />
-      <line x1="3" y1="3" x2="21" y2="21" />
-    </svg>
-  )
-);
+import { useNavigate, Link } from 'react-router-dom';
+import { Eye, EyeOff, Mail, Lock, LogIn } from 'lucide-react';
 
 const Login = () => {
   const [form, setForm] = useState({ email: '', password: '' });
@@ -42,57 +22,76 @@ const Login = () => {
       signupData.password === form.password
     ) {
        localStorage.setItem('isLoggedIn', 'true');
-      alert('Login successful!');
-      navigate('/Dashboard'); // Redirect to dashboard
+       navigate('/Dashboard');
     } else {
       alert('Invalid email or password.');
     }
   };
 
   return (
-    <div>
-      {/* <Header /> */}
-      <section className="login-section">
-        <div className="login-content">
-          <h2>Login to OXBANK</h2>
-          <form className="login-form" onSubmit={handleSubmit}>
-            <label>
-              Email Address
-              <input
-                type="email"
-                name="email"
-                className="login-input"
-                placeholder="Enter your email"
-                value={form.email}
-                onChange={handleChange}
-                required
-              />
-            </label>
-            <label style={{ position: 'relative' }}>
-              Password
-             <input
-               type={showPassword ? "text" : "password"}
-               name="password"
-               className="login-input"
-               placeholder="Enter your password"
-               value={form.password}
-               onChange={handleChange}
-               required
-              style={{ paddingRight: "2.2rem" }} // just enough for the icon
-               />
-              <span
-              onClick={() => setShowPassword((prev) => !prev)}
-               className="password-eye"
-               tabIndex={0}
-               aria-label={showPassword ? "Hide password" : "Show password"}
-               >
-              <EyeIcon visible={showPassword} />
-              </span>
-            </label>
-            <button type="submit" className="login-btn">Login</button>
+    <div className="auth-page animate-fade-in">
+      <section className="auth-section">
+        <div className="auth-card glass">
+          <div className="auth-header">
+            <img src="/Oxbank.png" alt="Logo" className="auth-logo" />
+            <h2 className="text-gradient">Welcome Back</h2>
+            <p className="auth-subtitle">Log in to your secure OXBANK account</p>
+          </div>
+          
+          <form className="auth-form" onSubmit={handleSubmit}>
+            <div className="input-field">
+              <label>Email Address</label>
+              <div className="input-wrapper">
+                <Mail size={18} className="input-icon" />
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="nathan@example.com"
+                  value={form.email}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+            </div>
+            <div className="input-field">
+              <label>Password</label>
+              <div className="password-wrapper">
+                <Lock size={18} className="input-icon" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  placeholder="••••••••"
+                  value={form.password}
+                  onChange={handleChange}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="eye-btn"
+                  aria-label="Toggle password visibility"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+            
+            <div className="auth-options">
+               <label className="remember-me">
+                  <input type="checkbox" /> 
+                  <span>Remember me</span>
+               </label>
+               <a href="#" className="forgot-pass">Forgot Password?</a>
+            </div>
+
+            <button type="submit" className="btn btn-primary auth-submit flex-center">
+              <LogIn size={18} style={{ marginRight: '8px' }} />
+              Log In
+            </button>
           </form>
-          <p>
-            Don't have an account? <a href="/Signup">Sign up here</a>
+
+          <p className="auth-footer">
+            Don't have an account? <Link to="/Signup">Create one for free</Link>
           </p>
         </div>
       </section>
@@ -102,6 +101,3 @@ const Login = () => {
 };
 
 export default Login;
-
- 
-

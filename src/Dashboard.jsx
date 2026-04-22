@@ -1,56 +1,67 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Footer from './Footer';
 import './assets/Style.css/Dashboard.css';
 import { Link } from 'react-router-dom';
-
-
-const EyeIcon = ({ visible }) => (
-  visible ? (
-    <svg width="32" height="38" viewBox="0 0 24 24" fill="none"
-      stroke="#551A8B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-      style={{ display: 'block' }}>
-      <ellipse cx="12" cy="12" rx="9" ry="5" />
-      <circle cx="12" cy="12" r="2" />
-    </svg>
-  ) : (
-    <svg width="32" height="38" viewBox="0 0 24 24" fill="none"
-      stroke="#551A8B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-      style={{ display: 'block' }}>
-      <ellipse cx="12" cy="12" rx="9" ry="5" />
-      <line x1="3" y1="3" x2="21" y2="21" />
-    </svg>
-  )
-);
-
-const user = JSON.parse(localStorage.getItem('signupData')) || { name: 'User' };
-
-const initialTransactions = [
-  { id: 1, type: 'credit', amount: 500, note: 'Salary', date: '2025-05-28' },
-  { id: 2, type: 'debit', amount: 120, note: 'Groceries', date: '2025-05-27' },
-  { id: 3, type: 'debit', amount: 60, note: 'Utilities', date: '2025-05-26' },
-  { id: 4, type: 'credit', amount: 200, note: 'Transfer', date: '2025-05-25' },
-];
+import { 
+  Eye, 
+  EyeOff, 
+  Send, 
+  Download, 
+  CreditCard, 
+  ArrowUpRight, 
+  ArrowDownLeft, 
+  Plus, 
+  Copy,
+  ChevronRight,
+  CheckCircle2,
+  X
+} from 'lucide-react';
 
 const Dashboard = () => {
-  const [transactions, setTransactions] = useState(initialTransactions);
+  const [user, setUser] = useState({ name: 'User' });
+  const [transactions, setTransactions] = useState([]);
   const [balance, setBalance] = useState(10000);
+  const [showBalance, setShowBalance] = useState(true);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [accountNumber, setAccountNumber] = useState('');
+  
   const [form, setForm] = useState({
     recipientAccount: '',
     recipient: '',
     amount: '',
     note: ''
   });
-  const [showBalance, setShowBalance] = useState(true);
 
-  // Generate or retrieve account number
-  const [accountNumber] = useState(() => {
-    let acc = localStorage.getItem('accountNumber');
-    if (!acc) {
-      acc = '23' + Math.floor(100000000 + Math.random() * 900000000); // 10-digit number starting with 23
-      localStorage.setItem('accountNumber', acc);
+  // Defensive data initialization
+  useEffect(() => {
+    try {
+      const signupData = JSON.parse(localStorage.getItem('signupData'));
+      if (signupData) setUser(signupData);
+
+      const savedTransactions = [
+        { id: 1, type: 'credit', amount: 500, note: 'Salary', date: '2025-05-28', category: 'Income' },
+        { id: 2, type: 'debit', amount: 120, note: 'Groceries', date: '2025-05-27', category: 'Shopping' },
+        { id: 3, type: 'debit', amount: 60, note: 'Utilities', date: '2025-05-26', category: 'Bills' },
+        { id: 4, type: 'credit', amount: 200, note: 'Transfer', date: '2025-05-25', category: 'Transfer' },
+      ];
+      setTransactions(savedTransactions);
+
+      let acc = localStorage.getItem('accountNumber');
+      if (!acc) {
+        acc = 'OX' + Math.floor(1000000000 + Math.random() * 9000000000);
+        localStorage.setItem('accountNumber', acc);
+      }
+      setAccountNumber(acc);
+    } catch (err) {
+      console.error("Failed to load dashboard data:", err);
     }
-    return acc;
-  });
+  }, []);
+
+  const savingsGoals = [
+    { id: 1, name: 'Dream Vacation', target: 5000, current: 3200, color: '#551A8B' },
+    { id: 2, name: 'New Laptop', target: 2000, current: 850, color: '#ff6600' },
+  ];
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -59,126 +70,211 @@ const Dashboard = () => {
   const handleTransfer = (e) => {
     e.preventDefault();
     const amount = parseFloat(form.amount);
-    if (!form.recipientAccount || !form.recipient || !amount || amount <= 0) {
-      alert('Please enter a valid recipient account, name, and amount.');
-      return;
-    }
+    if (!form.recipientAccount || !form.recipient || !amount || amount <= 0) return;
     if (amount > balance) {
       alert('Insufficient balance.');
       return;
     }
+
     const newTransaction = {
-      id: transactions.length + 1,
+      id: Date.now(),
       type: 'debit',
       amount,
-      note: form.note || 'Transfer',
-      date: new Date().toISOString().slice(0, 10),
+      note: form.note || `To ${form.recipient}`,
+      date: 'Today',
+      category: 'Transfer'
     };
-    setTransactions([newTransaction, ...transactions]);
-    setBalance(balance - amount);
-    setForm({
-      recipientAccount: '',
-      recipient: '',
-      amount: '',
-      note: ''
-    });
+
+    setTransactions(prev => [newTransaction, ...prev]);
+    setBalance(prev => prev - amount);
+    setIsSuccess(true);
+    
+    setTimeout(() => {
+      setIsSuccess(false);
+      setShowTransferModal(false);
+      setForm({ recipientAccount: '', recipient: '', amount: '', note: '' });
+    }, 2500);
+  };
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(accountNumber);
+    alert("Account number copied!");
   };
 
   return (
-    <div>
-      <section className="dashboard-section">
-        <div className="dashboard-content">
-          <div className="dashboard-header">
-            <h1>Welcome, {user.name}!</h1>
-            <Link to={'/Logout'}>
-              <button className="bttn logout-btn">Logout</button>
-            </Link>
-          </div>
-          <div className="dashboard-cards">
-            <div className="dashboard-card">
-              <h2 style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                Account Balance
-                <span
-                  onClick={() => setShowBalance((prev) => !prev)}
-                  style={{
-                    cursor: "pointer",
-                    marginLeft: "10px",
-                    display: "flex",
-                    alignItems: "center"
-                  }}
-                  tabIndex={0}
-                  aria-label={showBalance ? "Hide balance" : "Show balance"}
-                >
-                  <EyeIcon visible={showBalance} />
-                </span>
-              </h2>
-              <p className="balance">
-                {showBalance ? `$${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "••••••••"}
-              </p>
-              <div className="account-number">
-                <strong>Account Number:</strong> {accountNumber}
+    <div className="dashboard-page">
+      <div className="dashboard-main-content animate-fade-in">
+        <div className="dashboard-container">
+        
+        {/* HERO SECTION */}
+        <div className="dashboard-hero glass">
+          <div className="hero-content">
+            <div className="balance-info">
+              <p className="welcome-text">Welcome back, <span className="text-gradient">{user.name}</span></p>
+              <p className="label">Total Balance</p>
+              <div className="balance-row">
+                <h1 className="main-balance">
+                  {showBalance ? `$${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "••••••••"}
+                </h1>
+                <button className="icon-btn" onClick={() => setShowBalance(!showBalance)}>
+                  {showBalance ? <Eye size={24} /> : <EyeOff size={24} />}
+                </button>
+              </div>
+              <div className="account-tag">
+                <span>{accountNumber || 'OX-LOADING...'}</span>
+                <button onClick={copyToClipboard} className="copy-btn">
+                  <Copy size={14} />
+                </button>
               </div>
             </div>
-            <div className="dashboard-card">
-              <h2>Transfer Money</h2>
-              <form className="transfer-form" onSubmit={handleTransfer}>
-                <input
-                  type="text"
-                  name="recipientAccount"
-                  className="dashboard-input"
-                  placeholder="Recipient Account Number"
-                  value={form.recipientAccount}
-                  onChange={handleChange}
-                  required
-                />
-                <input
-                  type="text"
-                  name="recipient"
-                  className="dashboard-input"
-                  placeholder="Recipient Name"
-                  value={form.recipient}
-                  onChange={handleChange}
-                  required
-                />
-                <input
-                  type="number"
-                  name="amount"
-                  className="dashboard-input"
-                  placeholder="Amount"
-                  value={form.amount}
-                  onChange={handleChange}
-                  required
-                  min="1"
-                />
-                <input
-                  type="text"
-                  name="note"
-                  className="dashboard-input"
-                  placeholder="Note (optional)"
-                  value={form.note}
-                  onChange={handleChange}
-                />
-                <button type="submit">Send</button>
-              </form>
-            </div>
-            <div className="dashboard-card">
-              <h2>Recent Transactions</h2>
-              <ul className="transactions">
-                {transactions.map((tx) => (
-                  <li key={tx.id} className={tx.type}>
-                    <span>
-                      {tx.type === 'credit' ? '+' : '-'}${tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </span>
-                    <span>{tx.note}</span>
-                    <span className="date">{tx.date}</span>
-                  </li>
-                ))}
-              </ul>
+            
+            <div className="quick-actions">
+              <button className="action-btn primary" onClick={() => setShowTransferModal(true)}>
+                <div className="icon"><Send size={24} /></div>
+                <span>Send</span>
+              </button>
+              <button className="action-btn">
+                <div className="icon"><Download size={24} /></div>
+                <span>Request</span>
+              </button>
+              <button className="action-btn">
+                <div className="icon"><CreditCard size={24} /></div>
+                <span>Bills</span>
+              </button>
             </div>
           </div>
+          <div className="hero-decoration"></div>
         </div>
-      </section>
-      <Footer />
+
+        <div className="dashboard-grid">
+          {/* LEFT COLUMN: Analytics & Goals */}
+          <div className="dashboard-col main-col">
+            
+            <section className="dashboard-section-card glass">
+              <div className="section-header">
+                <h2>Spending Analytics</h2>
+                <select className="period-select">
+                  <option>This Week</option>
+                  <option>This Month</option>
+                </select>
+              </div>
+              <div className="analytics-placeholder">
+                <div className="chart-bar"><div className="fill" style={{height: '60%'}}></div><span>Mon</span></div>
+                <div className="chart-bar"><div className="fill" style={{height: '40%'}}></div><span>Tue</span></div>
+                <div className="chart-bar"><div className="fill" style={{height: '85%'}}></div><span>Wed</span></div>
+                <div className="chart-bar"><div className="fill" style={{height: '50%'}}></div><span>Thu</span></div>
+                <div className="chart-bar"><div className="fill" style={{height: '70%'}}></div><span>Fri</span></div>
+                <div className="chart-bar"><div className="fill" style={{height: '30%'}}></div><span>Sat</span></div>
+                <div className="chart-bar"><div className="fill" style={{height: '45%'}}></div><span>Sun</span></div>
+              </div>
+            </section>
+
+            <section className="dashboard-section-card glass">
+              <div className="section-header">
+                <h2>Savings Goals</h2>
+                <button className="text-btn">
+                  <Plus size={16} style={{ marginRight: '4px' }} />
+                  New Goal
+                </button>
+              </div>
+              <div className="goals-list">
+                {savingsGoals.map(goal => (
+                  <div key={goal.id} className="goal-item">
+                    <div className="goal-info">
+                      <span>{goal.name}</span>
+                      <span>${goal.current} / ${goal.target}</span>
+                    </div>
+                    <div className="progress-bg">
+                      <div className="progress-fill" style={{ 
+                        width: `${(goal.current / goal.target) * 100}%`,
+                        backgroundColor: goal.color 
+                      }}></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          {/* RIGHT COLUMN: Recent Transactions */}
+          <div className="dashboard-col side-col">
+            <section className="dashboard-section-card glass transactions-card">
+              <div className="section-header">
+                <h2>Recent Transactions</h2>
+                <Link to="/transactions" className="text-btn flex-center">
+                  View All <ChevronRight size={16} />
+                </Link>
+              </div>
+              <div className="transactions-list">
+                {transactions.length > 0 ? transactions.map((tx) => (
+                  <div key={tx.id} className="tx-item">
+                    <div className={`tx-icon ${tx.type}`}>
+                      {tx.type === 'credit' ? <ArrowDownLeft size={20} /> : <ArrowUpRight size={20} />}
+                    </div>
+                    <div className="tx-details">
+                      <p className="tx-note">{tx.note}</p>
+                      <p className="tx-category">{tx.category} • {tx.date}</p>
+                    </div>
+                    <div className={`tx-amount ${tx.type}`}>
+                      {tx.type === 'credit' ? '+' : '-'}${tx.amount.toLocaleString()}
+                    </div>
+                  </div>
+                )) : (
+                  <p className="empty-state">No transactions yet.</p>
+                )}
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+        <Footer />
+      </div>
+
+      {/* TRANSFER MODAL */}
+      {showTransferModal && (
+        <div className="modal-overlay">
+          <div className="modal-content glass">
+            {isSuccess ? (
+              <div className="success-view">
+                <div className="success-icon">
+                  <CheckCircle2 size={48} color="var(--primary)" />
+                </div>
+                <h3>Transfer Successful!</h3>
+                <p>Your money has been sent to {form.recipient}</p>
+              </div>
+            ) : (
+              <>
+                <div className="modal-header">
+                  <h2>Transfer Money</h2>
+                  <button onClick={() => setShowTransferModal(false)} className="close-btn">
+                     <X size={24} />
+                  </button>
+                </div>
+                <form className="transfer-modal-form" onSubmit={handleTransfer}>
+                  <div className="input-group">
+                    <label>Recipient Name</label>
+                    <input type="text" name="recipient" placeholder="e.g. John Doe" value={form.recipient} onChange={handleChange} required />
+                  </div>
+                  <div className="input-group">
+                    <label>Account Number</label>
+                    <input type="text" name="recipientAccount" placeholder="e.g. OX12345678" value={form.recipientAccount} onChange={handleChange} required />
+                  </div>
+                  <div className="input-group">
+                    <label>Amount ($)</label>
+                    <input type="number" name="amount" placeholder="0.00" value={form.amount} onChange={handleChange} required min="1" />
+                  </div>
+                  <div className="input-group">
+                    <label>Note (Optional)</label>
+                    <input type="text" name="note" placeholder="Rent, Groceries, etc." value={form.note} onChange={handleChange} />
+                  </div>
+                  <button type="submit" className="btn-primary modal-submit">Proceed Transfer</button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -9,6 +9,7 @@ import About from './About';
 import Signup from './Signup';
 import Dashboard from './Dashboard';
 import { Header } from './Header';
+import ProtectedRoute from './ProtectedRoute';
 
 function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
@@ -30,7 +31,11 @@ function App() {
         <Route path="/Logout" element={<Logout/>} />
         <Route path="/About" element={<About/>} />
         <Route path="/Signup" element={<Signup/>} />
-        <Route path="/Dashboard" element={<Dashboard/>} />
+        <Route path="/Dashboard" element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        } />
       </Routes>
     </BrowserRouter>
   );

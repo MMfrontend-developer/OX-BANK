@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './assets/Style.css/Header.css';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -6,15 +6,85 @@ export const Header = ({ theme, toggleTheme }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
   const location = useLocation();
-  const onDashboard = location.pathname === '/Dashboard';
+  const [user, setUser] = useState({ name: 'User' });
 
-  // Only show Login if NOT (logged in AND on dashboard)
-  const showLogin = !(isLoggedIn && onDashboard);
+  useEffect(() => {
+    try {
+      const signupData = JSON.parse(localStorage.getItem('signupData'));
+      if (signupData) setUser(signupData);
+    } catch (err) {
+      console.error("Failed to load user data in Header:", err);
+    }
+  }, []);
+
+  // Purely based on login status
+  const showLogin = !isLoggedIn;
 
   return (
-    <header className="header">
-      <div className="logo-hamburger">
-        <img src="/Oxbank.png" className='OXBANK' alt="OXBANK Logo" />
+    <header className="header glass">
+      <div className="header-container">
+        <div className="logo-hamburger">
+          <Link to="/" className="logo-link">
+            <img src="/Oxbank.png" className='OXBANK' alt="OXBANK Logo" />
+            <span className="logo-text">OXBANK</span>
+          </Link>
+        </div>
+
+        <nav className={`nav-links ${menuOpen ? 'open' : ''}`}>
+          <Link to={'/'} className={location.pathname === '/' ? 'active' : ''} onClick={() => setMenuOpen(false)}>Home</Link>
+          <Link to={'/Services'} className={location.pathname === '/Services' ? 'active' : ''} onClick={() => setMenuOpen(false)}>Services</Link>
+          <Link to={'/About'} className={location.pathname === '/About' ? 'active' : ''} onClick={() => setMenuOpen(false)}>About</Link>
+          {isLoggedIn && (
+            <Link 
+              to={'/Dashboard'} 
+              className={location.pathname === '/Dashboard' ? 'active' : ''} 
+              onClick={() => setMenuOpen(false)}
+            >
+              Dashboard
+            </Link>
+          )}
+        </nav>
+
+        <div className={`header-actions ${menuOpen ? 'open' : ''}`}>
+          <button
+            onClick={toggleTheme}
+            className="theme-toggle-modern"
+            aria-label="Toggle Theme"
+          >
+            {theme === 'light' ? '🌙' : '☀️'}
+          </button>
+          
+          <div className='btn-log'>
+            {showLogin ? (
+              <Link to={'/Login'} onClick={() => setMenuOpen(false)}>
+                <button className='btn btn-primary'>Sign In</button>
+              </Link>
+            ) : (
+              <div className="user-profile-dropdown">
+                <div className="avatar">
+                  {user.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="dropdown-menu glass">
+                  <div className="dropdown-header">
+                    <p className="user-name">{user.name}</p>
+                    <p className="user-email">{user.email}</p>
+                  </div>
+                  <hr className="dropdown-divider" />
+                  <Link to="/Dashboard" className="dropdown-item" onClick={() => setMenuOpen(false)}>
+                    Dashboard
+                  </Link>
+                  <Link to="/profile" className="dropdown-item" onClick={() => setMenuOpen(false)}>
+                    Profile Settings
+                  </Link>
+                  <Link to="/Logout" className="dropdown-item logout-link" onClick={() => setMenuOpen(false)}>
+                    Log Out
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         <button
           className={`hamburger${menuOpen ? ' open' : ''}`}
           onClick={() => setMenuOpen(!menuOpen)}
@@ -23,37 +93,6 @@ export const Header = ({ theme, toggleTheme }) => {
           <span className="bar"></span>
           <span className="bar"></span>
           <span className="bar"></span>
-        </button>
-      </div>
-      <nav className={`nav-links ${menuOpen ? 'open' : ''}`}>
-        <Link to={'/'} onClick={() => setMenuOpen(false)}>Home</Link>
-        <Link to={'/Services'} onClick={() => setMenuOpen(false)}>Services</Link>
-        <Link to={'/About'} onClick={() => setMenuOpen(false)}>About</Link>
-      </nav>
-      <div className={`header-actions ${menuOpen ? 'open' : ''}`}>
-        <div className='btn-log'>
-          {showLogin && (
-            <Link to={'/Login'} onClick={() => setMenuOpen(false)}>
-              <button className='btn'>Login</button>
-            </Link>
-          )}
-        </div>
-        <button
-          onClick={toggleTheme}
-          className="theme-toggle"
-          style={{
-            background: theme === 'light' ? '#551A8B' : '#fff',
-            color: theme === 'light' ? '#fff' : '#551A8B',
-            borderRadius: '8px',
-            border: 'none',
-            fontWeight: "700",
-            fontSize: '1rem',
-            padding: '10px 10px',
-            cursor: 'pointer',
-            marginRight: "5px",
-          }}
-        >
-          {theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'}
         </button>
       </div>
     </header>

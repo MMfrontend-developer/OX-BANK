@@ -1,27 +1,8 @@
 import React, { useState } from 'react'
-// import { Header } from './Header'
 import "./assets/Style.css/Signup.css"
 import Footer from './Footer'
-
-const EyeIcon = ({ visible }) => (
-  visible ? (
-    // Eye open SVG
-    <svg width="45" height="25" viewBox="0 0 24 24" fill="none"
-      stroke="#551A8B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      style={{ display: 'block' }}>
-      <ellipse cx="12" cy="12" rx="9" ry="5" />
-      <circle cx="12" cy="12" r="2" />
-    </svg>
-  ) : (
-    // Eye closed SVG
-    <svg width="45" height="25" viewBox="0 0 24 24" fill="none"
-      stroke="#551A8B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      style={{ display: 'block' }}>
-      <ellipse cx="12" cy="12" rx="9" ry="5" />
-      <line x1="3" y1="3" x2="21" y2="21" />
-    </svg>
-  )
-);
+import { Link, useNavigate } from 'react-router-dom'
+import { User, Mail, Lock, UserPlus, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 
 const Signup = () => {
   const [form, setForm] = useState({
@@ -29,7 +10,8 @@ const Signup = () => {
     email: '',
     password: ''
   });
-  const [showPassword, setShowPassword] = useState(false); // <-- Add this
+  const [showPassword, setShowPassword] = useState(false);
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -37,76 +19,90 @@ const Signup = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Save to localStorage
     localStorage.setItem('signupData', JSON.stringify(form));
-    alert('Signup successful!');
-    setForm({ name: '', email: '', password: '' });
+    alert('Account created successfully!');
+    navigate('/Login');
   };
 
   return (
-    <div>
-      {/* <Header /> */}
-      <section className="signup-section">
-        <div className="signup-content">
-          <h1>Create Your Account</h1>
-          <form className="signup-form" onSubmit={handleSubmit}>
-            <label>
-              Full Name
-              <input
-                type="text"
-                name="name"
-                placeholder="Full Name"
-                value={form.name}
-                onChange={handleChange}
-                required
-              />
-            </label>
-            <label>
-              Email Address
-              <input
-                type="email"
-                name="email"
-                placeholder="Email Address"
-                value={form.email}
-                onChange={handleChange}
-                required
-              />
-            </label>
-            <label style={{ position: 'relative' }}>
-              Password
-              <input
-                type={showPassword ? "text" : "password"}
-                name="password"
-                className="login-input"
-                placeholder="Enter your password"
-                value={form.password}
-                onChange={handleChange}
-                required
-                style={{ paddingRight: "2.2rem" }}
-              />
-              <span
-                onClick={() => setShowPassword((prev) => !prev)}
-                className="password-eye"
-                tabIndex={0}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                style={{
-                  position: "absolute",
-                  right: "20px",
-                  top: "60px",
-                  cursor: "pointer",
-                  userSelect: "none",
-                  display: "flex",
-                  alignItems: "center",
-                  height: "35px",
-                   fontSize: "2rem",
-                }}
-              >
-                <EyeIcon visible={showPassword} />
-              </span>
-            </label>
-            <button type="submit" className="primary">Sign Up</button>
+    <div className="auth-page animate-fade-in">
+      <section className="auth-section">
+        <div className="auth-card glass">
+          <div className="auth-header">
+            <img src="/Oxbank.png" alt="Logo" className="auth-logo" />
+            <h2 className="text-gradient">Get Started</h2>
+            <p className="auth-subtitle">Join OXBANK and manage your wealth elegantly</p>
+          </div>
+          
+          <form className="auth-form" onSubmit={handleSubmit}>
+            <div className="input-field">
+              <label>Full Name</label>
+              <div className="input-wrapper">
+                <User size={18} className="input-icon" />
+                <input
+                  type="text"
+                  name="name"
+                  placeholder="Nathan Drake"
+                  value={form.name}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+            </div>
+            <div className="input-field">
+              <label>Email Address</label>
+              <div className="input-wrapper">
+                <Mail size={18} className="input-icon" />
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="nathan@example.com"
+                  value={form.email}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+            </div>
+            <div className="input-field">
+              <label>Password</label>
+              <div className="password-wrapper">
+                <Lock size={18} className="input-icon" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  placeholder="••••••••"
+                  value={form.password}
+                  onChange={handleChange}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="eye-btn"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+            
+            <div className="auth-terms">
+               <label className="terms-check">
+                  <input type="checkbox" required /> 
+                  <span>
+                    I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>
+                  </span>
+               </label>
+            </div>
+
+            <button type="submit" className="btn btn-primary auth-submit flex-center">
+              <UserPlus size={18} style={{ marginRight: '8px' }} />
+              Create Account
+            </button>
           </form>
-          <p>Already have an account? <a href="/Login">Login here</a></p>
+
+          <p className="auth-footer">
+            Already have an account? <Link to="/Login">Sign in instead</Link>
+          </p>
         </div>
       </section>
       <Footer />

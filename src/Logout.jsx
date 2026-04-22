@@ -1,28 +1,24 @@
 import React, { useEffect } from 'react';
-// import { Header } from './Header';
-import { useNavigate } from 'react-router';
+import { useNavigate } from 'react-router-dom';
 
 const Logout = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Clear data
-    localStorage.removeItem('userData');
+    // Clear login status
     localStorage.removeItem('isLoggedIn');
+    // Optional: Keep signupData so they can log in again easily
+    // localStorage.removeItem('signupData'); 
     
-    // Redirect after 1 second
-    const timeout = setTimeout(() => {
-      navigate('/');
-    }, 1000); // 1 second
-
-    
-    return () => clearTimeout(timeout);
+    // Redirect to home or login
+    navigate('/');
+    // Force a page reload to update Header state (if not using centralized state)
+    window.location.reload();
   }, [navigate]);
 
   return (
-    <div>
-      {/* <Header /> */}
-      <p>Logging out...</p>
+    <div className="logout-page">
+      <p>Logging you out...</p>
     </div>
   );
 };
