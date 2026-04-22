@@ -71,6 +71,15 @@
     color: var(--primary);
 }
 
+.mobile-auth-container {
+    display: none;
+    margin-top: 1rem;
+}
+
+.desktop-auth-container {
+    display: block;
+}
+
 .nav-links a.active::after {
     content: '';
     position: absolute;
@@ -283,6 +292,14 @@
     .nav-links.open a {
         font-size: 1.5rem;
         font-weight: 600;
+    }
+
+    .mobile-auth-container {
+        display: block;
+    }
+
+    .desktop-auth-container {
+        display: none;
     }
 
     /* Remove the absolute positioning for actions in open state */
