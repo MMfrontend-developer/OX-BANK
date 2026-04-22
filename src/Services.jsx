@@ -8,7 +8,7 @@ import {
   TrendingUp, 
   CreditCard, 
   MessageSquare,
-  CheckCircle2
+  CircleCheck
 } from 'lucide-react';
 
 const Services = () => (
@@ -31,9 +31,9 @@ const Services = () => (
             <h3>Premium Accounts</h3>
             <p>High-yield savings and current accounts with no maintenance fees and worldwide access.</p>
             <ul className="service-features">
-              <li><CheckCircle2 size={16} color="var(--primary)" /> Zero hidden fees</li>
-              <li><CheckCircle2 size={16} color="var(--primary)" /> Multi-currency support</li>
-              <li><CheckCircle2 size={16} color="var(--primary)" /> Instant setup</li>
+              <li><CircleCheck size={16} color="var(--primary)" /> Zero hidden fees</li>
+              <li><CircleCheck size={16} color="var(--primary)" /> Multi-currency support</li>
+              <li><CircleCheck size={16} color="var(--primary)" /> Instant setup</li>
             </ul>
           </div>
 
@@ -42,9 +42,9 @@ const Services = () => (
             <h3>Next-Gen App</h3>
             <p>Experience the most intuitive mobile banking interface. Manage wealth on the move with ease.</p>
             <ul className="service-features">
-              <li><CheckCircle2 size={16} color="var(--primary)" /> Biometric security</li>
-              <li><CheckCircle2 size={16} color="var(--primary)" /> Real-time notifications</li>
-              <li><CheckCircle2 size={16} color="var(--primary)" /> Dark mode support</li>
+              <li><CircleCheck size={16} color="var(--primary)" /> Biometric security</li>
+              <li><CircleCheck size={16} color="var(--primary)" /> Real-time notifications</li>
+              <li><CircleCheck size={16} color="var(--primary)" /> Dark mode support</li>
             </ul>
           </div>
 
@@ -53,9 +53,9 @@ const Services = () => (
             <h3>Vault Protection</h3>
             <p>Bank-grade encryption and individual insurance on all deposits for absolute peace of mind.</p>
             <ul className="service-features">
-              <li><CheckCircle2 size={16} color="var(--primary)" /> 2FA everywhere</li>
-              <li><CheckCircle2 size={16} color="var(--primary)" /> Card freezing instantly</li>
-              <li><CheckCircle2 size={16} color="var(--primary)" /> Fraud detection AI</li>
+              <li><CircleCheck size={16} color="var(--primary)" /> 2FA everywhere</li>
+              <li><CircleCheck size={16} color="var(--primary)" /> Card freezing instantly</li>
+              <li><CircleCheck size={16} color="var(--primary)" /> Fraud detection AI</li>
             </ul>
           </div>
 
@@ -64,9 +64,9 @@ const Services = () => (
             <h3>Smart Investments</h3>
             <p>Automated portfolio management and personalized investment advice powered by data.</p>
             <ul className="service-features">
-              <li><CheckCircle2 size={16} color="var(--primary)" /> Stock trading</li>
-              <li><CheckCircle2 size={16} color="var(--primary)" /> Crypto integration</li>
-              <li><CheckCircle2 size={16} color="var(--primary)" /> Tax optimization</li>
+              <li><CircleCheck size={16} color="var(--primary)" /> Stock trading</li>
+              <li><CircleCheck size={16} color="var(--primary)" /> Crypto integration</li>
+              <li><CircleCheck size={16} color="var(--primary)" /> Tax optimization</li>
             </ul>
           </div>
 
@@ -75,9 +75,9 @@ const Services = () => (
             <h3>Elite Credit</h3>
             <p>Exclusive credit lines with competitive rates and high-tier reward programs for travelers.</p>
             <ul className="service-features">
-              <li><CheckCircle2 size={16} color="var(--primary)" /> Cashback rewards</li>
-              <li><CheckCircle2 size={16} color="var(--primary)" /> Airport lounge access</li>
-              <li><CheckCircle2 size={16} color="var(--primary)" /> Concierge service</li>
+              <li><CircleCheck size={16} color="var(--primary)" /> Cashback rewards</li>
+              <li><CircleCheck size={16} color="var(--primary)" /> Airport lounge access</li>
+              <li><CircleCheck size={16} color="var(--primary)" /> Concierge service</li>
             </ul>
           </div>
 
@@ -86,9 +86,9 @@ const Services = () => (
             <h3>Priority Support</h3>
             <p>Dedicated financial advisors and 24/7 technical support available via chat or phone.</p>
             <ul className="service-features">
-              <li><CheckCircle2 size={16} color="var(--primary)" /> Under 1 min wait time</li>
-              <li><CheckCircle2 size={16} color="var(--primary)" /> Local experts</li>
-              <li><CheckCircle2 size={16} color="var(--primary)" /> Video consultations</li>
+              <li><CircleCheck size={16} color="var(--primary)" /> Under 1 min wait time</li>
+              <li><CircleCheck size={16} color="var(--primary)" /> Local experts</li>
+              <li><CircleCheck size={16} color="var(--primary)" /> Video consultations</li>
             </ul>
           </div>
         </div>

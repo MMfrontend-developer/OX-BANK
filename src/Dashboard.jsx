@@ -13,7 +13,7 @@ import {
   Plus, 
   Copy,
   ChevronRight,
-  CheckCircle2,
+  CircleCheck,
   X
 } from 'lucide-react';
 
@@ -238,7 +238,7 @@ const Dashboard = () => {
             {isSuccess ? (
               <div className="success-view">
                 <div className="success-icon">
-                  <CheckCircle2 size={48} color="var(--primary)" />
+                  <CircleCheck size={48} color="var(--primary)" />
                 </div>
                 <h3>Transfer Successful!</h3>
                 <p>Your money has been sent to {form.recipient}</p>
