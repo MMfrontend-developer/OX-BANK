@@ -1,20 +1,16 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from './AuthContext';
+import './assets/Style.css/Logout.css';
 
 const Logout = () => {
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   useEffect(() => {
-    // Clear login status
-    localStorage.removeItem('isLoggedIn');
-    // Optional: Keep signupData so they can log in again easily
-    // localStorage.removeItem('signupData'); 
-    
-    // Redirect to home or login
-    navigate('/');
-    // Force a page reload to update Header state (if not using centralized state)
-    window.location.reload();
-  }, [navigate]);
+    logout();
+    navigate('/', { replace: true });
+  }, [logout, navigate]);
 
   return (
     <div className="logout-page">

@@ -44,7 +44,6 @@
 
 .service-card-modern {
     padding: 3rem;
-    border-radius: 280px; /* Resetting wait */
     border-radius: 24px;
 }
 
@@ -82,11 +81,7 @@
     gap: 0.75rem;
 }
 
-.service-features li::before {
-    content: '✓';
-    color: var(--primary);
-    font-weight: 800;
-}
+/* Checkmark icons are rendered by lucide-react CircleCheck component inline */
 
 @media (max-width: 768px) {
     .services-hero-container h1 {

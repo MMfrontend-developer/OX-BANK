@@ -1,11 +1,14 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from './AuthContext';
 
 const ProtectedRoute = ({ children }) => {
-  const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+  const { isLoggedIn } = useAuth();
+  const location = useLocation();
 
   if (!isLoggedIn) {
-    return <Navigate to="/Login" replace />;
+    // Preserve where user was trying to go so we can redirect back after login
+    return <Navigate to="/Login" state={{ from: location }} replace />;
   }
 
   return children;
