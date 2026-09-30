@@ -1,0 +1,231 @@
+.transfers-page {
+  min-height: 100vh;
+  padding-top: var(--header-height, 80px);
+  padding-bottom: 80px;
+}
+
+.transfers-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.transfers-header {
+  margin-bottom: 2rem;
+}
+
+.transfers-header h1 {
+  font-size: 2.25rem;
+  font-weight: 800;
+}
+
+.transfers-subtitle {
+  color: var(--text-muted);
+  font-size: 1rem;
+  margin-top: 0.5rem;
+}
+
+/* TYPE TABS */
+.transfer-type-tabs {
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem;
+  border-radius: 14px;
+  margin-bottom: 2rem;
+  overflow-x: auto;
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.tab-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tab-btn.active {
+  background: var(--primary, #551A8B);
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(85, 26, 139, 0.3);
+}
+
+/* GRID LAYOUT */
+.transfers-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 2rem;
+}
+
+@media (max-width: 900px) {
+  .transfers-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.transfer-form-card {
+  padding: 2rem;
+  border-radius: 20px;
+}
+
+.transfer-form-card h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+}
+
+.transfers-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.own-transfer-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 1rem;
+  border-radius: 12px;
+  background: rgba(85, 26, 139, 0.1);
+  border: 1px solid rgba(85, 26, 139, 0.2);
+  color: var(--text-color);
+  font-size: 0.9rem;
+}
+
+.available-hint {
+  font-size: 0.8rem;
+  color: var(--accent, #ff6600);
+  margin-top: 4px;
+}
+
+.transfer-success-box {
+  text-align: center;
+  padding: 3rem 1.5rem;
+}
+
+.transfer-success-box h2 {
+  margin-top: 1rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.transfer-success-box p {
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
+/* SIDE COL */
+.transfers-side-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.beneficiaries-card,
+.recent-transfers-card {
+  padding: 1.5rem;
+  border-radius: 20px;
+}
+
+.beneficiaries-card h3,
+.recent-transfers-card h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.beneficiaries-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.beneficiary-chip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-glass, rgba(255, 255, 255, 0.1));
+  color: var(--text-color);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.beneficiary-chip:hover {
+  background: rgba(85, 26, 139, 0.15);
+  border-color: var(--primary, #551A8B);
+  transform: translateX(4px);
+}
+
+.avatar-mini {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #551a8b, #ff6600);
+  color: #fff;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+}
+
+.b-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.b-acc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.recent-transfers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.mini-transfer-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border-glass, rgba(255, 255, 255, 0.05));
+}
+
+.t-note {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.t-date {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.t-amount {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.t-amount.credit { color: #10b981; }
+.t-amount.debit { color: #ef4444; }

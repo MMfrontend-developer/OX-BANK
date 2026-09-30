@@ -1,0 +1,256 @@
+.cards-page {
+  min-height: 100vh;
+  padding-top: var(--header-height, 80px);
+  padding-bottom: 80px;
+}
+
+.cards-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.cards-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.cards-header h1 {
+  font-size: 2.25rem;
+  font-weight: 800;
+}
+
+.cards-subtitle {
+  color: var(--text-muted);
+  font-size: 1rem;
+  margin-top: 0.5rem;
+}
+
+.cards-main-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2.5rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .cards-main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* VIRTUAL CARD CONTAINER */
+.card-flipper-wrapper {
+  perspective: 1000px;
+}
+
+.virtual-card {
+  width: 100%;
+  max-width: 420px;
+  height: 250px;
+  border-radius: 20px;
+  padding: 1.75rem;
+  position: relative;
+  background: linear-gradient(135deg, rgba(85, 26, 139, 0.85), rgba(255, 102, 0, 0.75));
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3), inset 0 0 15px rgba(255, 255, 255, 0.15);
+  color: #fff;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-style: preserve-3d;
+  margin: 0 auto;
+}
+
+.virtual-card.frozen {
+  filter: grayscale(0.85) opacity(0.8);
+  border-color: #ef4444;
+}
+
+.card-front,
+.card-back {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.card-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bank-name {
+  font-weight: 900;
+  font-size: 1.25rem;
+  letter-spacing: 2px;
+}
+
+.card-brand {
+  font-weight: 800;
+  font-size: 0.9rem;
+  letter-spacing: 1px;
+}
+
+.card-chip-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.emv-chip {
+  width: 45px;
+  height: 32px;
+  background: linear-gradient(135deg, #ffd700, #b8860b);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #000;
+}
+
+.contactless-icon {
+  opacity: 0.8;
+}
+
+.card-number {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.card-bottom-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.card-label {
+  font-size: 0.65rem;
+  opacity: 0.7;
+  letter-spacing: 1px;
+}
+
+.card-holder,
+.card-expiry {
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+/* CARD BACK */
+.magnetic-strip {
+  width: calc(100% + 3.5rem);
+  margin-left: -1.75rem;
+  height: 45px;
+  background: #111;
+  margin-top: 0.5rem;
+}
+
+.cvv-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.cvv-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.cvv-box {
+  background: #fff;
+  color: #000;
+  font-family: monospace;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.card-back-note {
+  font-size: 0.65rem;
+  opacity: 0.7;
+  text-align: center;
+  margin-top: auto;
+}
+
+.card-controls-bar {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.card-settings-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.setting-card {
+  padding: 1.75rem;
+  border-radius: 20px;
+}
+
+.setting-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.freeze-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.75rem 1.25rem;
+  border-radius: 12px;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.freeze-btn.is-frozen {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.spending-progress-box {
+  margin-top: 1.5rem;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.limit-form {
+  display: flex;
+  gap: 10px;
+  margin-top: 1rem;
+}
+
+.limit-input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-glass, rgba(255, 255, 255, 0.1));
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-color);
+  font-size: 1rem;
+}

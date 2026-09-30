@@ -1,39 +1,87 @@
+/**
+ * AuthContext.jsx — REPLACES src/AuthContext.jsx
+ *
+ * Fully rewritten to use authService (PBKDF2, session tokens, multi-user).
+ * Exports the same { isLoggedIn, user, login, logout, signup } shape
+ * so existing pages that import useAuth() continue to work.
+ * Additional exports: { currentToken, refreshUser }
+ */
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { authService } from './services/authService.js';
+import { initDatabase } from './services/db.js';
 
 const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
-  const [isLoggedIn, setIsLoggedIn] = useState(
-    () => localStorage.getItem('isLoggedIn') === 'true'
-  );
-  const [user, setUser] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('signupData')) || { name: 'User', email: '' };
-    } catch {
-      return { name: 'User', email: '' };
-    }
-  });
+const SESSION_KEY = 'oxbank_session';
 
-  const login = useCallback((userData) => {
-    localStorage.setItem('isLoggedIn', 'true');
-    localStorage.setItem('signupData', JSON.stringify(userData));
-    setIsLoggedIn(true);
-    setUser(userData);
+export const AuthProvider = ({ children }) => {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState(null);
+  const [currentToken, setCurrentToken] = useState(null);
+  const [loading, setLoading] = useState(true); // true while checking stored session
+
+  // ── Boot: init DB then resolve stored session ──
+  useEffect(() => {
+    async function boot() {
+      await initDatabase();
+
+      const token = localStorage.getItem(SESSION_KEY);
+      if (token) {
+        const resolved = authService.resolveSession(token);
+        if (resolved) {
+          setUser(resolved);
+          setCurrentToken(token);
+          setIsLoggedIn(true);
+        } else {
+          localStorage.removeItem(SESSION_KEY);
+        }
+      }
+      setLoading(false);
+    }
+    boot();
+  }, []);
+
+  const login = useCallback(async ({ email, password }) => {
+    const result = await authService.login({ email, password });
+    if (result.ok) {
+      localStorage.setItem(SESSION_KEY, result.sessionToken);
+      setUser(result.user);
+      setCurrentToken(result.sessionToken);
+      setIsLoggedIn(true);
+    }
+    return result;
+  }, []);
+
+  const signup = useCallback(async (data) => {
+    const result = await authService.signup(data);
+    if (result.ok) {
+      localStorage.setItem(SESSION_KEY, result.sessionToken);
+      setUser(result.user);
+      setCurrentToken(result.sessionToken);
+      setIsLoggedIn(true);
+    }
+    return result;
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem('isLoggedIn');
+    const token = localStorage.getItem(SESSION_KEY);
+    if (token) authService.logout(token);
+    localStorage.removeItem(SESSION_KEY);
     setIsLoggedIn(false);
-    setUser({ name: 'User', email: '' });
+    setUser(null);
+    setCurrentToken(null);
   }, []);
 
-  const signup = useCallback((userData) => {
-    localStorage.setItem('signupData', JSON.stringify(userData));
-    setUser(userData);
+  /** Re-read user from DB (call after profile update) */
+  const refreshUser = useCallback(() => {
+    const token = localStorage.getItem(SESSION_KEY);
+    if (!token) return;
+    const resolved = authService.resolveSession(token);
+    if (resolved) setUser(resolved);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, user, login, logout, signup }}>
+    <AuthContext.Provider value={{ isLoggedIn, user, login, logout, signup, currentToken, refreshUser, loading }}>
       {children}
     </AuthContext.Provider>
   );

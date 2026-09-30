@@ -2,8 +2,15 @@ import React, { useState } from 'react';
 import Footer from './Footer';
 import './assets/Style.css/Login.css';
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, LogIn, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, LogIn, AlertCircle, ShieldCheck, UserCheck } from 'lucide-react';
 import { useAuth } from './AuthContext';
+import { useToast } from './context/ToastContext';
+
+const DEMO_ACCOUNTS = [
+  { label: 'Customer (Default)', email: 'demo@oxbank.test', pass: 'Demo@1234', role: 'User' },
+  { label: 'Customer 2', email: 'alice@oxbank.test', pass: 'Alice@1234', role: 'User' },
+  { label: 'System Admin', email: 'admin@oxbank.test', pass: 'Admin@1234', role: 'Admin' },
+];
 
 const Login = () => {
   const [form, setForm] = useState({ email: '', password: '' });
@@ -12,10 +19,17 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { toast } = useToast();
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
     setError('');
+  };
+
+  const fillDemo = (acc) => {
+    setForm({ email: acc.email, password: acc.pass });
+    setError('');
+    toast.info(`Filled credentials for ${acc.label}`);
   };
 
   const handleSubmit = async (e) => {
@@ -23,21 +37,24 @@ const Login = () => {
     setIsLoading(true);
     setError('');
 
-    // Simulate a brief loading state for UX
-    await new Promise(resolve => setTimeout(resolve, 400));
-
-    const signupData = JSON.parse(localStorage.getItem('signupData'));
-    if (
-      signupData &&
-      signupData.email === form.email &&
-      signupData.password === form.password
-    ) {
-      login(signupData);
-      navigate('/Dashboard');
-    } else {
-      setError('Invalid email or password. Please try again.');
+    try {
+      const res = await login(form.email, form.password);
+      if (res.ok) {
+        toast.success(`Welcome back, ${res.user.name}!`);
+        if (res.user.role === 'admin') {
+          navigate('/admin');
+        } else {
+          navigate('/Dashboard');
+        }
+      } else {
+        setError(res.error || 'Invalid email or password.');
+        toast.error(res.error || 'Login failed');
+      }
+    } catch (err) {
+      setError(err.message || 'An unexpected error occurred.');
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   return (
@@ -48,6 +65,25 @@ const Login = () => {
             <img src="/Oxbank.png" alt="Logo" className="auth-logo" />
             <h2 className="text-gradient">Welcome Back</h2>
             <p className="auth-subtitle">Log in to your secure OXBANK account</p>
+          </div>
+
+          {/* DEMO ACCOUNTS QUICK-FILL PICKER */}
+          <div className="demo-credentials-box">
+            <p className="demo-cred-title"><UserCheck size={14} /> Quick Demo Logins</p>
+            <div className="demo-cred-buttons">
+              {DEMO_ACCOUNTS.map((acc) => (
+                <button
+                  key={acc.email}
+                  type="button"
+                  className="demo-cred-btn"
+                  onClick={() => fillDemo(acc)}
+                  title={`Click to fill ${acc.email}`}
+                >
+                  <span className="demo-cred-label">{acc.label}</span>
+                  <span className="demo-cred-role">{acc.role}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {error && (
@@ -65,7 +101,7 @@ const Login = () => {
                 <input
                   type="email"
                   name="email"
-                  placeholder="nathan@example.com"
+                  placeholder="demo@oxbank.test"
                   value={form.email}
                   onChange={handleChange}
                   required
@@ -78,7 +114,7 @@ const Login = () => {
               <div className="password-wrapper">
                 <Lock size={18} className="input-icon" />
                 <input
-                  type={showPassword ? "text" : "password"}
+                  type={showPassword ? 'text' : 'password'}
                   name="password"
                   placeholder="••••••••"
                   value={form.password}
@@ -99,10 +135,10 @@ const Login = () => {
 
             <div className="auth-options">
               <label className="remember-me">
-                <input type="checkbox" />
-                <span>Remember me</span>
+                <input type="checkbox" defaultChecked />
+                <span>Remember session</span>
               </label>
-              <a href="#" className="forgot-pass">Forgot Password?</a>
+              <span className="forgot-pass-hint">Demo PIN: 1234</span>
             </div>
 
             <button

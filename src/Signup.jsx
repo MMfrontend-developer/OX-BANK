@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
-import "./assets/Style.css/Signup.css"
-import Footer from './Footer'
-import { Link, useNavigate } from 'react-router-dom'
-import { User, Mail, Lock, UserPlus, Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { useAuth } from './AuthContext'
+import React, { useState } from 'react';
+import './assets/Style.css/Signup.css';
+import Footer from './Footer';
+import { Link, useNavigate } from 'react-router-dom';
+import { User, Mail, Lock, UserPlus, Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useAuth } from './AuthContext';
+import { useToast } from './context/ToastContext';
 
 const getStrength = (password) => {
   let score = 0;
@@ -11,7 +12,7 @@ const getStrength = (password) => {
   if (/[A-Z]/.test(password)) score++;
   if (/[0-9]/.test(password)) score++;
   if (/[^A-Za-z0-9]/.test(password)) score++;
-  return score; // 0-4
+  return score;
 };
 
 const strengthLabel = ['', 'Weak', 'Fair', 'Good', 'Strong'];
@@ -22,7 +23,7 @@ const Signup = () => {
     name: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -30,6 +31,7 @@ const Signup = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { signup } = useAuth();
+  const { toast } = useToast();
 
   const strength = getStrength(form.password);
 
@@ -42,8 +44,8 @@ const Signup = () => {
     e.preventDefault();
     setError('');
 
-    if (form.password.length < 6) {
-      setError('Password must be at least 6 characters long.');
+    if (form.password.length < 8) {
+      setError('Password must be at least 8 characters long.');
       return;
     }
 
@@ -53,12 +55,25 @@ const Signup = () => {
     }
 
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 400));
+    try {
+      const res = await signup({
+        name: form.name,
+        email: form.email,
+        password: form.password,
+      });
 
-    const { confirmPassword, ...userData } = form;
-    signup(userData);
-    navigate('/Login');
-    setIsLoading(false);
+      if (res.ok) {
+        toast.success('Account created successfully! Welcome to OXBANK.');
+        navigate('/Dashboard');
+      } else {
+        setError(res.error || 'Failed to create account.');
+        toast.error(res.error || 'Signup failed');
+      }
+    } catch (err) {
+      setError(err.message || 'An error occurred during signup.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -114,7 +129,7 @@ const Signup = () => {
               <div className="password-wrapper">
                 <Lock size={18} className="input-icon" />
                 <input
-                  type={showPassword ? "text" : "password"}
+                  type={showPassword ? 'text' : 'password'}
                   name="password"
                   placeholder="••••••••"
                   value={form.password}
@@ -134,7 +149,7 @@ const Signup = () => {
               {form.password && (
                 <div className="password-strength">
                   <div className="strength-bars">
-                    {[1, 2, 3, 4].map(i => (
+                    {[1, 2, 3, 4].map((i) => (
                       <div
                         key={i}
                         className="strength-bar"
@@ -153,7 +168,7 @@ const Signup = () => {
               <div className="password-wrapper">
                 <Lock size={18} className="input-icon" />
                 <input
-                  type={showConfirm ? "text" : "password"}
+                  type={showConfirm ? 'text' : 'password'}
                   name="confirmPassword"
                   placeholder="••••••••"
                   value={form.confirmPassword}
@@ -207,7 +222,7 @@ const Signup = () => {
       </section>
       <Footer />
     </div>
-  )
-}
+  );
+};
 
-export default Signup
+export default Signup;
