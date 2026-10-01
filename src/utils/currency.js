@@ -31,13 +31,28 @@ export function formatCompact(kobo) {
 }
 
 /**
+ * Convert NGN amount (naira) → kobo integer.
+ */
+export function nairaToKobo(naira) {
+  const n = typeof naira === 'number' ? naira : parseFloat(String(naira).replace(/[^\d.]/g, ''));
+  if (isNaN(n) || n <= 0) return 0;
+  return Math.round(n * 100);
+}
+
+/**
+ * Convert kobo integer → NGN number.
+ */
+export function koboToNaira(kobo) {
+  if (typeof kobo !== 'number') return 0;
+  return kobo / 100;
+}
+
+/**
  * Parse a string input (user typed "500.50") → kobo integer (50050).
  * Returns NaN if invalid.
  */
 export function parseToKobo(str) {
-  const n = parseFloat(String(str).replace(/[^\d.]/g, ''));
-  if (isNaN(n) || n <= 0) return NaN;
-  return Math.round(n * 100);
+  return nairaToKobo(str);
 }
 
 /**

@@ -114,10 +114,41 @@ async function revealCardDetails(accountId, userId, pin) {
   return { ok: true, card };
 }
 
+export async function createVirtualCard(userId, accountId, cardType = 'MASTERCARD') {
+  await delay();
+  const card = buildCard(accountId, userId);
+  card.cardType = cardType;
+  dbUpdate('cards', (cards) => ({ ...cards, [accountId]: card }));
+  return { ok: true, card };
+}
+
+export const getCardsForUser = async (userId) => {
+  const cards = getAllUserCards(userId);
+  return cards.map((c) => ({
+    ...c,
+    cardNumber: c.maskedNumber || c.fullNumber,
+    isFrozen: c.frozen,
+    monthlyLimitKobo: c.spendingLimit || 50000000,
+    spentThisMonthKobo: c.totalSpentThisCycle || 0,
+  }));
+};
+
+export {
+  getCard,
+  getAllUserCards,
+  freezeCard,
+  unfreezeCard,
+  setSpendingLimit,
+  canCharge,
+  revealCardDetails,
+};
+
 export const cardService = {
   buildCard,
   getCard,
   getAllUserCards,
+  getCardsForUser,
+  createVirtualCard,
   freezeCard,
   unfreezeCard,
   setSpendingLimit,

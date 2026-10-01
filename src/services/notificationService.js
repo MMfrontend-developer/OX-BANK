@@ -76,11 +76,41 @@ function getAllNotifications() {
   return dbRead('notifications');
 }
 
-export const notificationService = {
+function list(userId) {
+  return getAll(userId);
+}
+
+function safeMarkRead(arg1, arg2) {
+  const notifs = dbRead('notifications');
+  if (arg2) {
+    return markRead(arg1, arg2);
+  }
+  // If single arg passed (notificationId)
+  const notificationId = arg1;
+  for (const [userId, userNotifs] of Object.entries(notifs)) {
+    if (userNotifs.some((n) => n.id === notificationId)) {
+      return markRead(userId, notificationId);
+    }
+  }
+}
+
+export {
   create,
+  list,
   getAll,
   getUnreadCount,
-  markRead,
+  safeMarkRead as markRead,
+  markAllRead,
+  deleteNotification,
+  getAllNotifications,
+};
+
+export const notificationService = {
+  create,
+  list,
+  getAll,
+  getUnreadCount,
+  markRead: safeMarkRead,
   markAllRead,
   deleteNotification,
   getAllNotifications,

@@ -237,8 +237,15 @@ function logout(token) {
 /**
  * Change password for a user.
  */
-async function changePassword(userId, { currentPassword, newPassword }) {
+async function changePassword(userId, arg2, arg3) {
   await delay();
+
+  let currentPassword = arg2;
+  let newPassword = arg3;
+  if (typeof arg2 === 'object' && arg2 !== null) {
+    currentPassword = arg2.currentPassword;
+    newPassword = arg2.newPassword;
+  }
 
   const users = dbRead('users');
   const user = users[userId];
@@ -260,6 +267,18 @@ async function changePassword(userId, { currentPassword, newPassword }) {
 
   return { ok: true };
 }
+
+export {
+  signup,
+  login,
+  logout,
+  resolveSession,
+  changePassword,
+  changePin,
+  verifyPin,
+  updateProfile,
+  getLoginActivity,
+};
 
 /**
  * Change transaction PIN.

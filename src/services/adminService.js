@@ -108,10 +108,63 @@ async function getStats(adminId) {
   return { totalUsers, totalAccounts, totalBalance, totalTransactions };
 }
 
+async function getAdminStats(adminId) {
+  await delay();
+  const users = dbRead('users');
+  const accounts = dbRead('accounts');
+
+  const userList = Object.values(users).map((u) => {
+    const { passwordHash, pinHash, ...safe } = u;
+    const userAccounts = Object.values(accounts).filter((a) => a.userId === u.id);
+    const totalBalanceKobo = userAccounts.reduce((sum, a) => sum + a.balance, 0);
+    return {
+      ...safe,
+      accounts: userAccounts,
+      totalBalanceKobo,
+    };
+  });
+
+  const totalMoneyKobo = userList.reduce((s, u) => s + u.totalBalanceKobo, 0);
+
+  return {
+    userCount: userList.length,
+    accountCount: Object.keys(accounts).length,
+    totalMoneyKobo,
+    users: userList,
+  };
+}
+
+async function toggleUserSuspension(targetUserId) {
+  await delay();
+  const users = dbRead('users');
+  const user = users[targetUserId];
+  if (!user) return { ok: false, error: 'User not found' };
+
+  const nextState = !user.suspended;
+  dbUpdate('users', (users) => ({
+    ...users,
+    [targetUserId]: { ...users[targetUserId], suspended: nextState },
+  }));
+
+  return { ok: true, message: `Account ${nextState ? 'suspended' : 'unsuspended'} successfully.` };
+}
+
+export {
+  listUsers,
+  getAllTransactions,
+  suspendUser,
+  unsuspendUser,
+  getStats,
+  getAdminStats,
+  toggleUserSuspension,
+};
+
 export const adminService = {
   listUsers,
   getAllTransactions,
   suspendUser,
   unsuspendUser,
   getStats,
+  getAdminStats,
+  toggleUserSuspension,
 };
