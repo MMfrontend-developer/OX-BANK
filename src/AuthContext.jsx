@@ -41,7 +41,13 @@ export const AuthProvider = ({ children }) => {
     boot();
   }, []);
 
-  const login = useCallback(async ({ email, password }) => {
+  const login = useCallback(async (arg1, arg2) => {
+    let email = arg1;
+    let password = arg2;
+    if (typeof arg1 === 'object' && arg1 !== null) {
+      email = arg1.email;
+      password = arg1.password;
+    }
     const result = await authService.login({ email, password });
     if (result.ok) {
       localStorage.setItem(SESSION_KEY, result.sessionToken);

@@ -159,8 +159,15 @@ async function signup({ name, email, password, phone = '' }) {
  * Enforces lockout after 5 failed attempts (30 s).
  * @returns {AuthResult}
  */
-async function login({ email, password }) {
+async function login(arg1, arg2) {
   await delay();
+
+  let email = arg1;
+  let password = arg2;
+  if (typeof arg1 === 'object' && arg1 !== null) {
+    email = arg1.email;
+    password = arg1.password;
+  }
 
   if (!email?.trim() || !password) {
     return { ok: false, error: 'Email and password are required.' };
