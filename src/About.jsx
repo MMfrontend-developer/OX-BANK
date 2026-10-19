@@ -72,7 +72,7 @@ const About = () => (
               </p>
               <div className="mission-stats">
                 <div className="mission-stat">
-                  <strong>10+</strong>
+                  <strong>15+</strong>
                   <span>Countries</span>
                 </div>
                 <div className="mission-stat">
