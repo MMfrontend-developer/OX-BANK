@@ -62,6 +62,8 @@ describe('OXBANK Backend Architecture Unit Tests', () => {
     const aliceAccount = accountService.getUserAccounts(aliceUser.id)[0];
 
     const result = await executeTransfer({
+      userId: demoUser.id,
+      pin: '1234',
       fromAccountId: sender.id,
       toAccountNumber: aliceAccount.number,
       toName: 'Alice',
@@ -82,6 +84,8 @@ describe('OXBANK Backend Architecture Unit Tests', () => {
     const submissionId = generateId();
 
     const transferPayload = {
+      userId: demoUser.id,
+      pin: '1234',
       fromAccountId: sender.id,
       toAccountNumber: aliceAccount.number,
       toName: 'Alice',

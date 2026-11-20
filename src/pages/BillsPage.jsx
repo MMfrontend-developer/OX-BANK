@@ -1,332 +1,313 @@
-import React, { useState, useEffect } from 'react';
-import Footer from '../Footer';
-import '../assets/Style.css/Bills.css';
+import React, { useMemo, useState } from 'react';
+import { Smartphone, Wifi, Zap, Tv, Globe, Plus, CalendarClock, Trash2, Repeat, Receipt, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { useData } from '../context/DataContext';
 import { useToast } from '../context/ToastContext';
+import { billService } from '../services/billService';
 import { formatCurrency, nairaToKobo } from '../utils/currency';
-import { listPayees, getScheduledBills, payBill, scheduleBill } from '../services/billService';
-import { Zap, Wifi, Tv, Phone, Calendar, CheckCircle2, AlertCircle, Clock, Plus, Trash2 } from 'lucide-react';
+import { Alert, AmountInput, Modal, Money, Empty } from '../components/ui';
 
-const CATEGORY_ICONS = {
-  Electricity: Zap,
-  Internet: Wifi,
-  CableTV: Tv,
-  Airtime: Phone,
-};
+const BILL_TYPES = [
+  { id: 'Airtime', icon: Smartphone, billers: ['MTN', 'Airtel', 'Glo', '9mobile'], refLabel: 'Phone number', refPattern: /^0\d{10}$/, refHint: '11-digit number, e.g. 08031234567', presets: [200, 500, 1000, 2000] },
+  { id: 'Data', icon: Wifi, billers: ['MTN Data', 'Airtel Data', 'Glo Data', '9mobile Data'], refLabel: 'Phone number', refPattern: /^0\d{10}$/, refHint: '11-digit number', presets: [1000, 2500, 5000, 10000] },
+  { id: 'Electricity', icon: Zap, billers: ['IKEDC (Ikeja Electric)', 'EKEDC (Eko Electric)', 'AEDC (Abuja Electric)', 'PHED (Port Harcourt)'], refLabel: 'Meter number', refPattern: /^\d{11,13}$/, refHint: '11–13 digit prepaid meter number', presets: [5000, 10000, 20000] },
+  { id: 'Cable TV', icon: Tv, billers: ['DStv', 'GOtv', 'StarTimes', 'Showmax'], refLabel: 'Smartcard / IUC number', refPattern: /^\d{10,11}$/, refHint: '10–11 digits', presets: [3500, 9000, 15000] },
+  { id: 'Internet', icon: Globe, billers: ['Spectranet', 'Smile', 'ipNX', 'Starlink'], refLabel: 'Customer ID', refPattern: /^[A-Za-z0-9-]{4,20}$/, refHint: 'As shown on your bill', presets: [10000, 20000, 38000] },
+];
 
-const BillsPage = () => {
-  const { user } = useAuth();
-  const { primaryAccount, refreshData } = useData();
+function QuickPay({ accounts, primaryAccount, userId, onPaid }) {
   const { toast } = useToast();
-
-  const [payees, setPayees] = useState([]);
-  const [scheduledBills, setScheduledBills] = useState([]);
-  const [activeTab, setActiveTab] = useState('pay'); // 'pay' | 'scheduled' | 'payees'
-
-  const [form, setForm] = useState({
-    payeeCategory: 'Electricity',
-    billerName: 'EKEDC Electricity',
-    customerRef: '',
-    amount: '',
-    isScheduled: false,
-    scheduledDate: '',
-  });
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [typeId, setTypeId] = useState('Airtime');
+  const type = BILL_TYPES.find((t) => t.id === typeId);
+  const [form, setForm] = useState({ biller: type.billers[0], ref: '', amount: '', accountId: primaryAccount?.id || '' });
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(null);
 
-  const loadBillData = async () => {
-    if (!user) return;
-    const p = await listPayees(user.id);
-    const s = await getScheduledBills(user.id);
-    setPayees(p);
-    setScheduledBills(s);
-  };
-
-  useEffect(() => {
-    loadBillData();
-  }, [user]);
-
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setForm({ ...form, [name]: type === 'checkbox' ? checked : value });
+  const chooseType = (t) => {
+    setTypeId(t.id);
+    setForm((f) => ({ ...f, biller: t.billers[0], ref: '', amount: '' }));
     setError('');
   };
 
-  const handlePayBill = async (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    setError('');
+    if (!type.refPattern.test(form.ref.trim())) return setError(`Check the ${type.refLabel.toLowerCase()}: ${type.refHint}.`);
+    const kobo = nairaToKobo(form.amount);
+    if (!kobo) return setError('Enter an amount.');
+    setBusy(true);
+    const res = await billService.quickPay(userId, {
+      biller: form.biller, category: typeId, customerRef: form.ref.trim(), amountKobo: kobo, fromAccountId: form.accountId || primaryAccount?.id,
+    });
+    setBusy(false);
+    if (!res.ok) return setError(res.error);
+    toast.success(`${formatCurrency(kobo)} paid to ${form.biller}.`);
+    setDone({ ...res, amount: kobo, biller: form.biller, ref: form.ref });
+    setForm((f) => ({ ...f, ref: '', amount: '' }));
+    onPaid();
+  };
 
-    const amountNaira = parseFloat(form.amount);
-    if (!form.customerRef.trim() || !amountNaira || amountNaira <= 0) {
-      setError('Please fill in customer reference number and valid amount.');
-      return;
-    }
+  if (done) {
+    return (
+      <div className="bk-center">
+        <div className="bk-success-mark"><CheckCircle2 size={34} /></div>
+        <h2>Payment successful</h2>
+        <p className="bk-muted" style={{ margin: '6px 0 14px' }}>{formatCurrency(done.amount)} to {done.biller} · {done.ref}</p>
+        <p className="bk-subtle" style={{ marginBottom: 16 }}>Reference <span className="bk-mono">{done.reference}</span></p>
+        <button type="button" className="bk-btn" onClick={() => setDone(null)}>Pay another bill</button>
+      </div>
+    );
+  }
 
-    const amountKobo = nairaToKobo(amountNaira);
+  return (
+    <form className="bk-form" onSubmit={submit} noValidate>
+      <div className="bk-grid-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: 8 }}>
+        {BILL_TYPES.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              aria-pressed={typeId === t.id}
+              onClick={() => chooseType(t)}
+              className={`bk-chip${typeId === t.id ? ' active' : ''}`}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '12px 6px', borderRadius: '12px' }}
+            >
+              <Icon size={20} /> {t.id}
+            </button>
+          );
+        })}
+      </div>
+      {error && <Alert>{error}</Alert>}
+      <div className="bk-row-2">
+        <div className="bk-field">
+          <label htmlFor="qp-biller">Provider</label>
+          <select id="qp-biller" value={form.biller} onChange={(e) => setForm({ ...form, biller: e.target.value })}>
+            {type.billers.map((b) => <option key={b}>{b}</option>)}
+          </select>
+        </div>
+        <div className="bk-field">
+          <label htmlFor="qp-ref">{type.refLabel}</label>
+          <input id="qp-ref" autoComplete="off" value={form.ref} placeholder={type.refHint} onChange={(e) => { setForm({ ...form, ref: e.target.value }); setError(''); }} />
+        </div>
+      </div>
+      <div className="bk-field">
+        <label htmlFor="qp-amt">Amount</label>
+        <AmountInput id="qp-amt" value={form.amount} onChange={(v) => { setForm({ ...form, amount: v }); setError(''); }} />
+        <div className="bk-presets">
+          {type.presets.map((p) => <button type="button" key={p} onClick={() => setForm({ ...form, amount: String(p) })}>₦{p.toLocaleString()}</button>)}
+        </div>
+      </div>
+      <div className="bk-field">
+        <label htmlFor="qp-acc">Pay from</label>
+        <select id="qp-acc" value={form.accountId} onChange={(e) => setForm({ ...form, accountId: e.target.value })}>
+          {accounts.map((a) => <option key={a.id} value={a.id}>{a.type} · {a.number} — {formatCurrency(a.balance)}</option>)}
+        </select>
+      </div>
+      <button type="submit" className="bk-btn block" disabled={busy}>{busy ? <span className="bk-spinner" /> : 'Pay now'}</button>
+    </form>
+  );
+}
 
-    if (!primaryAccount || primaryAccount.balance < amountKobo) {
-      setError('Insufficient balance to pay this bill.');
-      return;
-    }
+function AddPayeeModal({ userId, onClose, onDone }) {
+  const [form, setForm] = useState({ payee: '', category: 'Electricity', ref: '', amount: '' });
+  const [error, setError] = useState('');
+  const submit = async (e) => {
+    e.preventDefault();
+    const res = await billService.addPayee(userId, { payee: form.payee, category: form.category, customerRef: form.ref, amount: nairaToKobo(form.amount) });
+    if (!res.ok) return setError(res.error);
+    onDone(res.bill);
+  };
+  return (
+    <Modal title="Add payee" onClose={onClose}>
+      <form className="bk-form" onSubmit={submit}>
+        {error && <Alert>{error}</Alert>}
+        <div className="bk-field"><label htmlFor="ap-name">Payee name</label><input id="ap-name" value={form.payee} onChange={(e) => setForm({ ...form, payee: e.target.value })} placeholder="e.g. Landlord, IKEDC Home" /></div>
+        <div className="bk-row-2">
+          <div className="bk-field">
+            <label htmlFor="ap-cat">Category</label>
+            <select id="ap-cat" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+              {[...BILL_TYPES.map((t) => t.id), 'Subscriptions', 'Utilities', 'Rent', 'Other'].map((c) => <option key={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="bk-field"><label htmlFor="ap-ref">Customer ref (optional)</label><input id="ap-ref" value={form.ref} onChange={(e) => setForm({ ...form, ref: e.target.value })} /></div>
+        </div>
+        <div className="bk-field"><label htmlFor="ap-amt">Usual amount</label><AmountInput id="ap-amt" value={form.amount} onChange={(v) => setForm({ ...form, amount: v })} /></div>
+        <div className="bk-modal-foot">
+          <button type="button" className="bk-btn ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="bk-btn">Save payee</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
 
-    setIsSubmitting(true);
-    try {
-      if (form.isScheduled) {
-        if (!form.scheduledDate) {
-          setError('Please pick a date for the scheduled bill payment.');
-          setIsSubmitting(false);
-          return;
-        }
-        const res = await scheduleBill(user.id, {
-          payeeName: form.billerName,
-          category: form.payeeCategory,
-          customerRef: form.customerRef,
-          amountKobo,
-          scheduledDate: form.scheduledDate,
-        });
-        if (res.ok) {
-          toast.success(`Bill payment of ${formatCurrency(amountKobo)} scheduled for ${form.scheduledDate}!`);
-          await loadBillData();
-          setForm({
-            payeeCategory: 'Electricity',
-            billerName: 'EKEDC Electricity',
-            customerRef: '',
-            amount: '',
-            isScheduled: false,
-            scheduledDate: '',
-          });
-        }
-      } else {
-        const res = await payBill(user.id, {
-          payeeName: form.billerName,
-          category: form.payeeCategory,
-          customerRef: form.customerRef,
-          amountKobo,
-        });
-        if (res.ok) {
-          toast.success(`Paid ${formatCurrency(amountKobo)} for ${form.billerName}!`);
-          await refreshData();
-          await loadBillData();
-          setForm({
-            payeeCategory: 'Electricity',
-            billerName: 'EKEDC Electricity',
-            customerRef: '',
-            amount: '',
-            isScheduled: false,
-            scheduledDate: '',
-          });
-        } else {
-          setError(res.error || 'Failed to pay bill.');
-        }
-      }
-    } catch (err) {
-      setError(err.message || 'Error executing bill payment.');
-    } finally {
-      setIsSubmitting(false);
-    }
+function ScheduleModal({ bill, userId, onClose, onDone }) {
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const [date, setDate] = useState(tomorrow);
+  const [recurring, setRecurring] = useState(false);
+  const [error, setError] = useState('');
+  const submit = async (e) => {
+    e.preventDefault();
+    const res = await billService.scheduleBill(userId, bill.id, date, recurring ? 'monthly' : null);
+    if (!res.ok) return setError(res.error);
+    onDone(res.scheduledDate, recurring);
+  };
+  return (
+    <Modal title={`Schedule ${bill.payee}`} onClose={onClose}>
+      <form className="bk-form" onSubmit={submit}>
+        {error && <Alert>{error}</Alert>}
+        <p className="bk-muted">{formatCurrency(bill.amount)} will be paid from your Checking account at 09:00 on the chosen date.</p>
+        <div className="bk-field"><label htmlFor="sc-date">Payment date</label><input id="sc-date" type="date" min={tomorrow} value={date} onChange={(e) => setDate(e.target.value)} /></div>
+        <label className="bk-check"><input type="checkbox" checked={recurring} onChange={(e) => setRecurring(e.target.checked)} /> Repeat every month (standing order)</label>
+        <div className="bk-modal-foot">
+          <button type="button" className="bk-btn ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="bk-btn">Schedule</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+export default function BillsPage() {
+  const { user } = useAuth();
+  const { accounts, primaryAccount, bills, refresh } = useData();
+  const { toast } = useToast();
+  const [tab, setTab] = useState('pay');
+  const [adding, setAdding] = useState(false);
+  const [scheduling, setScheduling] = useState(null);
+  const [payingId, setPayingId] = useState(null);
+  const [confirmPay, setConfirmPay] = useState(null);
+
+  const scheduled = useMemo(() => bills.filter((b) => b.scheduledDate).sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate)), [bills]);
+
+  const payNow = async (bill) => {
+    setPayingId(bill.id);
+    const res = await billService.payBill(user.id, bill.id, primaryAccount.id);
+    setPayingId(null);
+    setConfirmPay(null);
+    if (!res.ok) return toast.error(res.error);
+    toast.success(`${formatCurrency(bill.amount)} paid to ${bill.payee}.`);
+    refresh();
+  };
+
+  const remove = async (bill) => {
+    await billService.deletePayee(user.id, bill.id);
+    toast.info(`${bill.payee} removed.`);
+    refresh();
+  };
+
+  const cancel = async (bill) => {
+    await billService.cancelSchedule(user.id, bill.id);
+    toast.info(`Scheduled payment to ${bill.payee} cancelled.`);
+    refresh();
   };
 
   return (
-    <div className="bills-page animate-fade-in">
-      <div className="bills-container">
-        <div className="bills-header">
-          <h1 className="text-gradient">Bills & Utilities</h1>
-          <p className="bills-subtitle">Pay your electricity, internet, cable TV, and airtime seamlessly with automated scheduler support.</p>
+    <div className="bk-page">
+      <div className="bk-page-head">
+        <div>
+          <h1>Bills & airtime</h1>
+          <p>Pay instantly, save payees and set up standing orders.</p>
         </div>
-
-        {/* TABS */}
-        <div className="bills-tabs glass">
-          <button className={`tab-btn ${activeTab === 'pay' ? 'active' : ''}`} onClick={() => setActiveTab('pay')}>
-            <Zap size={18} /> Pay a Bill
-          </button>
-          <button className={`tab-btn ${activeTab === 'scheduled' ? 'active' : ''}`} onClick={() => setActiveTab('scheduled')}>
-            <Clock size={18} /> Scheduled Payments ({scheduledBills.filter((b) => b.status === 'pending').length})
-          </button>
-        </div>
-
-        {activeTab === 'pay' && (
-          <div className="bills-content-grid">
-            {/* BILL FORM */}
-            <div className="bill-form-card glass">
-              <h2>Select Biller & Enter Details</h2>
-
-              {error && (
-                <div className="auth-error">
-                  <AlertCircle size={16} />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              <form onSubmit={handlePayBill} className="bills-form">
-                <div className="input-field">
-                  <label>Category</label>
-                  <div className="biller-categories">
-                    {[
-                      { cat: 'Electricity', name: 'EKEDC Electricity', icon: Zap },
-                      { cat: 'Internet', name: 'Fiber / Spectranet Internet', icon: Wifi },
-                      { cat: 'CableTV', name: 'DSTV / Gotv Cable', icon: Tv },
-                      { cat: 'Airtime', name: 'MTN / Airtel Airtime', icon: Phone },
-                    ].map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <button
-                          key={item.cat}
-                          type="button"
-                          className={`cat-btn ${form.payeeCategory === item.cat ? 'active' : ''}`}
-                          onClick={() => setForm({ ...form, payeeCategory: item.cat, billerName: item.name })}
-                        >
-                          <Icon size={20} />
-                          <span>{item.cat}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="input-field">
-                  <label>Biller Provider</label>
-                  <input type="text" name="billerName" value={form.billerName} onChange={handleChange} required />
-                </div>
-
-                <div className="input-field">
-                  <label>Customer Account / Meter / Phone Number</label>
-                  <input
-                    type="text"
-                    name="customerRef"
-                    placeholder="e.g. 041928374921 or 08012345678"
-                    value={form.customerRef}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-
-                <div className="input-field">
-                  <label>Amount (₦)</label>
-                  <input
-                    type="number"
-                    name="amount"
-                    placeholder="0.00"
-                    value={form.amount}
-                    onChange={handleChange}
-                    required
-                    min="1"
-                  />
-                </div>
-
-                <div className="input-field schedule-toggle">
-                  <label className="checkbox-label flex-center" style={{ gap: '8px', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      name="isScheduled"
-                      checked={form.isScheduled}
-                      onChange={handleChange}
-                    />
-                    <span>Schedule this bill for a future date</span>
-                  </label>
-                </div>
-
-                {form.isScheduled && (
-                  <div className="input-field">
-                    <label>Payment Date</label>
-                    <input
-                      type="date"
-                      name="scheduledDate"
-                      value={form.scheduledDate}
-                      onChange={handleChange}
-                      min={new Date().toISOString().split('T')[0]}
-                      required
-                    />
-                  </div>
-                )}
-
-                <button type="submit" className="btn btn-primary auth-submit flex-center" disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <span className="auth-spinner"></span>
-                  ) : form.isScheduled ? (
-                    'Schedule Bill Payment'
-                  ) : (
-                    'Pay Bill Now'
-                  )}
-                </button>
-              </form>
-            </div>
-
-            {/* BILL QUICK SAVED PAYEES */}
-            <div className="payees-side-card glass">
-              <h3>Saved Biller Templates</h3>
-              <div className="biller-templates">
-                {payees.map((p) => {
-                  const Icon = CATEGORY_ICONS[p.category] || Zap;
-                  return (
-                    <div
-                      key={p.id}
-                      className="biller-template-item"
-                      onClick={() =>
-                        setForm({
-                          ...form,
-                          payeeCategory: p.category,
-                          billerName: p.name,
-                          customerRef: p.accountNumber,
-                        })
-                      }
-                    >
-                      <div className="biller-icon">
-                        <Icon size={18} />
-                      </div>
-                      <div>
-                        <p className="biller-title">{p.name}</p>
-                        <p className="biller-sub">{p.accountNumber}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'scheduled' && (
-          <div className="scheduled-bills-section glass">
-            <h2>Scheduled Utility Payments</h2>
-            {scheduledBills.length === 0 ? (
-              <p className="empty-state">No scheduled bills yet.</p>
-            ) : (
-              <table className="scheduled-table">
-                <thead>
-                  <tr>
-                    <th>Biller</th>
-                    <th>Category</th>
-                    <th>Ref #</th>
-                    <th>Amount</th>
-                    <th>Due Date</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {scheduledBills.map((b) => (
-                    <tr key={b.id}>
-                      <td>{b.payeeName}</td>
-                      <td>{b.category}</td>
-                      <td>{b.customerRef}</td>
-                      <td>{formatCurrency(b.amountKobo)}</td>
-                      <td>{b.scheduledDate}</td>
-                      <td>
-                        <span className={`status-badge ${b.status}`}>{b.status.toUpperCase()}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
+        <button type="button" className="bk-btn" onClick={() => setAdding(true)}><Plus size={16} /> Add payee</button>
       </div>
 
-      <Footer />
+      <div className="bk-tabs" role="tablist">
+        {[['pay', 'Pay a bill'], ['payees', `Saved payees (${bills.length})`], ['scheduled', `Scheduled (${scheduled.length})`]].map(([id, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>{label}</button>
+        ))}
+      </div>
+
+      {tab === 'pay' && (
+        <section className="bk-card" style={{ maxWidth: 640 }}>
+          <QuickPay accounts={accounts} primaryAccount={primaryAccount} userId={user.id} onPaid={refresh} />
+        </section>
+      )}
+
+      {tab === 'payees' && (
+        <section className="bk-card">
+          {bills.length === 0 ? (
+            <Empty icon={Receipt}>No saved payees yet. Add one to pay it in a tap or schedule it.</Empty>
+          ) : (
+            <div className="bk-list">
+              {bills.map((b) => (
+                <div key={b.id} className="bk-item" style={{ flexWrap: 'wrap' }}>
+                  <span className="bk-tx-icon"><Receipt size={18} /></span>
+                  <div className="bk-item-main">
+                    <div className="bk-item-title">{b.payee}</div>
+                    <div className="bk-item-sub">
+                      {b.category}{b.customerRef ? ` · ${b.customerRef}` : ''} · {b.lastPaid ? `Last paid ${new Date(b.lastPaid).toLocaleDateString()}` : 'Never paid'}
+                    </div>
+                  </div>
+                  <Money kobo={b.amount} className="bk-amt" />
+                  <div className="bk-actions">
+                    <button type="button" className="bk-btn sm" disabled={payingId === b.id} onClick={() => setConfirmPay(b)}>Pay</button>
+                    <button type="button" className="bk-btn sm ghost" onClick={() => setScheduling(b)}><CalendarClock size={14} /> Schedule</button>
+                    <button type="button" className="bk-btn sm danger ghost" aria-label={`Delete ${b.payee}`} onClick={() => remove(b)}><Trash2 size={14} /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {tab === 'scheduled' && (
+        <section className="bk-card">
+          {scheduled.length === 0 ? (
+            <Empty icon={CalendarClock}>Nothing scheduled. Schedule a saved payee to pay it automatically.</Empty>
+          ) : (
+            <div className="bk-list">
+              {scheduled.map((b) => (
+                <div key={b.id} className="bk-item">
+                  <span className="bk-tx-icon">{b.recurring ? <Repeat size={18} /> : <CalendarClock size={18} />}</span>
+                  <div className="bk-item-main">
+                    <div className="bk-item-title">{b.payee}</div>
+                    <div className="bk-item-sub">
+                      {new Date(b.scheduledDate).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      {b.recurring ? ' · Repeats monthly' : ' · One-off'}
+                    </div>
+                  </div>
+                  <Money kobo={b.amount} className="bk-amt" />
+                  <button type="button" className="bk-btn sm ghost" onClick={() => cancel(b)}>Cancel</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {adding && (
+        <AddPayeeModal userId={user.id} onClose={() => setAdding(false)} onDone={(bill) => { setAdding(false); toast.success(`${bill.payee} saved.`); refresh(); setTab('payees'); }} />
+      )}
+      {scheduling && (
+        <ScheduleModal
+          bill={scheduling}
+          userId={user.id}
+          onClose={() => setScheduling(null)}
+          onDone={(when, rec) => {
+            toast.success(`${scheduling.payee} scheduled for ${new Date(when).toLocaleDateString()}${rec ? ', monthly' : ''}.`);
+            setScheduling(null);
+            refresh();
+          }}
+        />
+      )}
+      {confirmPay && (
+        <Modal title="Confirm payment" onClose={() => setConfirmPay(null)}>
+          <dl className="bk-summary">
+            <div><dt>Payee</dt><dd>{confirmPay.payee}</dd></div>
+            <div><dt>Amount</dt><dd>{formatCurrency(confirmPay.amount)}</dd></div>
+            <div><dt>From</dt><dd>{primaryAccount?.type} · {primaryAccount?.number}</dd></div>
+          </dl>
+          <div className="bk-modal-foot">
+            <button type="button" className="bk-btn ghost" onClick={() => setConfirmPay(null)}>Cancel</button>
+            <button type="button" className="bk-btn" disabled={payingId === confirmPay.id} onClick={() => payNow(confirmPay)}>
+              {payingId === confirmPay.id ? <span className="bk-spinner" /> : 'Pay now'}
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
-};
-
-export default BillsPage;
+}

@@ -6,13 +6,21 @@
  */
 
 import { hashPassword, verifyPassword, generateId } from './cryptoService.js';
-import { dbRead, dbUpdate, dbWrite } from './db.js';
+import { dbRead, dbUpdate } from './db.js';
 import { accountService } from './accountService.js';
 import { notificationService } from './notificationService.js';
 
 const LOCKOUT_MAX_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 30_000; // 30 seconds
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const PIN_MAX_ATTEMPTS = 3;
+const PIN_LOCK_MS = 5 * 60 * 1000; // 5 minutes
+
+export const DEFAULT_SETTINGS = {
+  idleTimeoutMin: 5, // auto sign-out after inactivity
+  hideBalances: false, // mask balances by default
+  loginAlerts: true, // notify on each successful sign-in
+};
 
 // Artificial delay to make loading states real
 const delay = (ms = 250) => new Promise((r) => setTimeout(r, ms + Math.random() * 150));
@@ -101,7 +109,7 @@ function recordLoginActivity(userId, success, ip = 'browser') {
  * Creates user record + Checking + Savings accounts.
  * @returns {AuthResult}
  */
-async function signup({ name, email, password, phone = '' }) {
+async function signup({ name, email, password, phone = '', pin = '' }) {
   await delay();
 
   if (!name?.trim()) return { ok: false, error: 'Name is required.' };
@@ -116,7 +124,9 @@ async function signup({ name, email, password, phone = '' }) {
   if (existing) return { ok: false, error: 'An account with this email already exists.' };
 
   const passwordHash = await hashPassword(password);
-  const pinHash = await hashPassword('0000'); // default PIN, user can change
+  if (pin && !/^\d{4}$/.test(pin)) return { ok: false, error: 'Transaction PIN must be exactly 4 digits.' };
+  const chosenPin = pin || '0000';
+  const pinHash = await hashPassword(chosenPin); // default PIN 0000 if none chosen
 
   const userId = generateId();
   const user = {
@@ -145,7 +155,9 @@ async function signup({ name, email, password, phone = '' }) {
   await notificationService.create(userId, {
     type: 'welcome',
     title: 'Welcome to OxBank! 🎉',
-    message: `Hi ${user.name}, your account is ready. Your default PIN is 0000 — please change it in Profile > Security.`,
+    message: pin
+      ? `Hi ${user.name}, your Checking and Savings accounts are ready.`
+      : `Hi ${user.name}, your account is ready. Your default PIN is 0000 — please change it in Profile > Security.`,
   });
 
   const sessionToken = createSession(userId);
@@ -206,6 +218,14 @@ async function login(arg1, arg2) {
   setLockout(email.toLowerCase(), { count: 0, lockedUntil: null });
   recordLoginActivity(user.id, true);
 
+  if ({ ...DEFAULT_SETTINGS, ...user.settings }.loginAlerts) {
+    await notificationService.create(user.id, {
+      type: 'security',
+      title: 'New sign-in',
+      message: `Your account was accessed on ${new Date().toLocaleString()}. If this wasn't you, change your password now.`,
+    });
+  }
+
   const sessionToken = createSession(user.id);
   return { ok: true, user: sanitizeUser(user), sessionToken };
 }
@@ -225,7 +245,7 @@ function resolveSession(token) {
   if (!userId) return null;
   const users = dbRead('users');
   const user = users[userId];
-  if (!user) return null;
+  if (!user || user.suspended) return null;
   return sanitizeUser(user);
 }
 
@@ -272,6 +292,12 @@ async function changePassword(userId, arg2, arg3) {
     [userId]: { ...users[userId], passwordHash },
   }));
 
+  await notificationService.create(userId, {
+    type: 'security',
+    title: 'Password changed',
+    message: 'Your password was changed. If this wasn\'t you, contact support immediately.',
+  });
+
   return { ok: true };
 }
 
@@ -302,13 +328,89 @@ async function changePin(userId, { currentPin, newPin }) {
 
   if (!/^\d{4}$/.test(newPin)) return { ok: false, error: 'PIN must be exactly 4 digits.' };
 
+  if (newPin === currentPin) return { ok: false, error: 'New PIN must be different from the current PIN.' };
+  if (/^(\d)\1{3}$/.test(newPin) || ['1234', '4321', '0123', '9876'].includes(newPin)) {
+    return { ok: false, error: 'Choose a less predictable PIN.' };
+  }
+
   const pinHash = await hashPassword(newPin);
   dbUpdate('users', (users) => ({
     ...users,
-    [userId]: { ...users[userId], pinHash },
+    [userId]: { ...users[userId], pinHash, pinFailedCount: 0, pinLockedUntil: null },
   }));
 
+  await notificationService.create(userId, {
+    type: 'security',
+    title: 'Transaction PIN changed',
+    message: 'Your transaction PIN was changed. If this wasn\'t you, contact support immediately.',
+  });
+
   return { ok: true };
+}
+
+/**
+ * Verify a transaction PIN with attempt limiting.
+ * 3 wrong attempts lock PIN-protected actions for 5 minutes.
+ * @returns {Promise<{ok: boolean, error?: string, locked?: boolean}>}
+ */
+async function checkPin(userId, pin) {
+  const users = dbRead('users');
+  const user = users[userId];
+  if (!user) return { ok: false, error: 'User not found.' };
+
+  if (user.pinLockedUntil && Date.now() < user.pinLockedUntil) {
+    const mins = Math.ceil((user.pinLockedUntil - Date.now()) / 60000);
+    return { ok: false, locked: true, error: `Too many wrong PIN attempts. Try again in ${mins} min.` };
+  }
+  if (!/^\d{4}$/.test(String(pin ?? ''))) return { ok: false, error: 'Enter your 4-digit PIN.' };
+
+  const valid = await verifyPassword(String(pin), user.pinHash);
+  if (valid) {
+    if (user.pinFailedCount) {
+      dbUpdate('users', (u) => ({ ...u, [userId]: { ...u[userId], pinFailedCount: 0, pinLockedUntil: null } }));
+    }
+    return { ok: true };
+  }
+
+  const count = (user.pinFailedCount || 0) + 1;
+  const locked = count >= PIN_MAX_ATTEMPTS;
+  dbUpdate('users', (u) => ({
+    ...u,
+    [userId]: {
+      ...u[userId],
+      pinFailedCount: locked ? 0 : count,
+      pinLockedUntil: locked ? Date.now() + PIN_LOCK_MS : null,
+    },
+  }));
+  if (locked) {
+    await notificationService.create(userId, {
+      type: 'security',
+      title: 'PIN temporarily locked',
+      message: 'Too many incorrect PIN attempts. PIN-protected actions are locked for 5 minutes.',
+    });
+    return { ok: false, locked: true, error: 'Too many wrong attempts. PIN locked for 5 minutes.' };
+  }
+  const left = PIN_MAX_ATTEMPTS - count;
+  return { ok: false, error: `Incorrect PIN. ${left} attempt${left === 1 ? '' : 's'} left.` };
+}
+
+/** Read a user's preference settings merged with defaults. */
+function getSettings(userId) {
+  const users = dbRead('users');
+  return { ...DEFAULT_SETTINGS, ...(users[userId]?.settings || {}) };
+}
+
+async function updateSettings(userId, patch) {
+  await delay(100);
+  const users = dbRead('users');
+  if (!users[userId]) return { ok: false, error: 'User not found.' };
+  const allowedTimeouts = [2, 5, 10, 15, 30];
+  if (patch.idleTimeoutMin !== undefined && !allowedTimeouts.includes(patch.idleTimeoutMin)) {
+    return { ok: false, error: 'Invalid auto sign-out time.' };
+  }
+  const settings = { ...getSettings(userId), ...patch };
+  dbUpdate('users', (u) => ({ ...u, [userId]: { ...u[userId], settings } }));
+  return { ok: true, settings };
 }
 
 /**
@@ -374,6 +476,9 @@ export const authService = {
   changePassword,
   changePin,
   verifyPin,
+  checkPin,
+  getSettings,
+  updateSettings,
   updateProfile,
   getLoginActivity,
   sanitizeUser,

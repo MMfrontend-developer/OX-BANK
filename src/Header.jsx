@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import './assets/Style.css/Header.css';
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { useTheme } from './context/ThemeContext';
 import { useData } from './context/DataContext';
@@ -21,8 +21,6 @@ export const Header = () => {
   const { isLoggedIn, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { unreadCount } = useData();
-  const location = useLocation();
-  const navigate = useNavigate();
 
   const closeMenu = () => setMenuOpen(false);
   const isAdmin = user?.role === 'admin';
