@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Footer from './Footer';
 import './assets/Style.css/Login.css';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, LogIn, AlertCircle, ShieldCheck, UserCheck } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { useToast } from './context/ToastContext';
@@ -18,6 +18,7 @@ const Login = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
   const { toast } = useToast();
 
@@ -41,11 +42,9 @@ const Login = () => {
       const res = await login(form.email, form.password);
       if (res.ok) {
         toast.success(`Welcome back, ${res.user.name}!`);
-        if (res.user.role === 'admin') {
-          navigate('/admin');
-        } else {
-          navigate('/Dashboard');
-        }
+        const from = location.state?.from?.pathname;
+        const fallback = res.user.role === 'admin' ? '/admin' : '/Dashboard';
+        navigate(from && from !== '/Login' && from !== '/Logout' ? from : fallback, { replace: true });
       } else {
         setError(res.error || 'Invalid email or password.');
         toast.error(res.error || 'Login failed');

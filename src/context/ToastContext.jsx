@@ -9,7 +9,7 @@
  *   toast.error('Insufficient funds.');
  *   toast.info('Processing…');
  */
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useMemo } from 'react';
 
 const ToastContext = createContext(null);
 
@@ -32,21 +32,24 @@ export const ToastProvider = ({ children }) => {
     return id;
   }, [dismiss]);
 
-  const toast = {
+  // Stable identity so `toast` is safe in effect/callback dependency lists.
+  const toast = useMemo(() => ({
     success: (msg, dur) => push(msg, 'success', dur),
     error: (msg, dur) => push(msg, 'error', dur || 5000),
     info: (msg, dur) => push(msg, 'info', dur),
     warning: (msg, dur) => push(msg, 'warning', dur),
-  };
+  }), [push]);
+  const value = useMemo(() => ({ toast, dismiss }), [toast, dismiss]);
 
   return (
-    <ToastContext.Provider value={{ toast, dismiss }}>
+    <ToastContext.Provider value={value}>
       {children}
       <ToastContainer toasts={toasts} dismiss={dismiss} />
     </ToastContext.Provider>
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useToast = () => {
   const ctx = useContext(ToastContext);
   if (!ctx) throw new Error('useToast must be used within ToastProvider');

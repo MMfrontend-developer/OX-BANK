@@ -1,60 +1,126 @@
 /**
  * transferService.js
  * Atomic debit + credit transfers between accounts.
- * Enforces: overdraft protection, zero/negative amounts,
- * same-account block, idempotency, spending limit via card.
+ *
+ * Enforces: account ownership, server-side PIN verification, overdraft
+ * protection, minimum amount, daily outbound limit, same-account block,
+ * suspended-user block and idempotency.
  *
  * Transfer flow:
- *  1. Validate inputs
- *  2. Check idempotency key (return cached result if already processed)
+ *  1. Validate inputs + idempotency key (return cached result if already processed)
+ *  2. Verify the caller owns the source account and (if required) the PIN
  *  3. Debit sender (appendLedgerEntry)
- *  4. Credit receiver (appendLedgerEntry)
+ *  4. Credit receiver for OXBANK accounts (appendLedgerEntry)
  *     → on failure: rollback step 3
- *  5. Record idempotency key
- *  6. Create notifications for both parties
+ *  5. Record idempotency key, notify both parties, return a receipt
  */
 
 import { accountService } from './accountService.js';
 import { notificationService } from './notificationService.js';
+import { authService } from './authService.js';
 import { dbRead, dbUpdate } from './db.js';
 import { generateId } from './cryptoService.js';
+import { formatCurrency } from '../utils/currency.js';
 
 const delay = (ms = 300) => new Promise((r) => setTimeout(r, ms + Math.random() * 100));
 
-const PIN_THRESHOLD_KOBO = 5_000_000; // 50,000 NGN — require PIN above this
+export const INTERNAL_BANK = 'OXBANK';
+export const DAILY_LIMIT_KOBO = 500_000_000; // ₦5,000,000 per user per day (outbound)
+const LOW_BALANCE_THRESHOLD = 5_000_000; // ₦50,000
+const MIN_AMOUNT_KOBO = 100; // ₦1
+const OUTBOUND_CATEGORIES = new Set(['Transfer']);
+
+export const NIGERIAN_BANKS = [
+  INTERNAL_BANK,
+  'Access Bank',
+  'First Bank of Nigeria',
+  'GTBank',
+  'Kuda Bank',
+  'Moniepoint',
+  'OPay',
+  'Palmpay',
+  'Stanbic IBTC',
+  'United Bank for Africa (UBA)',
+  'Wema Bank',
+  'Zenith Bank',
+];
 
 // ─────────────────────────────────────────────────────────────
 // Idempotency
 // ─────────────────────────────────────────────────────────────
 
-function isProcessed(idempotencyKey) {
+function processedResult(idempotencyKey) {
   const keys = dbRead('processedIdempotencyKeys');
-  return Array.isArray(keys) && keys.includes(idempotencyKey);
+  if (!Array.isArray(keys)) return null;
+  const hit = keys.find((k) => (typeof k === 'string' ? k : k.key) === idempotencyKey);
+  if (!hit) return null;
+  return typeof hit === 'string' ? {} : hit;
 }
 
-function markProcessed(idempotencyKey) {
+function markProcessed(idempotencyKey, reference) {
   dbUpdate('processedIdempotencyKeys', (keys) => {
     const arr = Array.isArray(keys) ? keys : [];
-    return [...arr, idempotencyKey].slice(-500); // keep last 500
+    return [...arr, { key: idempotencyKey, reference }].slice(-500);
   });
 }
 
 // ─────────────────────────────────────────────────────────────
-// Deposit (simulated — adds money from "the outside")
+// Helpers
 // ─────────────────────────────────────────────────────────────
 
-async function deposit(accountId, amountKobo, note = 'Deposit') {
+function getUser(userId) {
+  return dbRead('users')[userId] || null;
+}
+
+/** Sum of outbound transfers (to other people) a user made today. */
+function sentToday(userId) {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  return accountService
+    .getUserAccounts(userId)
+    .flatMap((a) => accountService.getLedger(a.id))
+    .filter((e) => e.type === 'debit' && OUTBOUND_CATEGORIES.has(e.category) && new Date(e.createdAt) >= start)
+    .reduce((sum, e) => sum + e.amount, 0);
+}
+
+function remainingDailyLimit(userId) {
+  return Math.max(0, DAILY_LIMIT_KOBO - sentToday(userId));
+}
+
+/**
+ * "Name enquiry" — resolve the holder of an account number.
+ * OXBANK accounts resolve to the real holder; other banks are simulated
+ * and require the sender to type the name.
+ */
+function lookupAccount(accountNumber, bank = INTERNAL_BANK) {
+  const number = String(accountNumber || '').trim();
+  if (!/^\d{10}$/.test(number)) return { ok: false, error: 'Account number must be 10 digits.' };
+  if (bank !== INTERNAL_BANK) return { ok: true, external: true, name: null, bank };
+  const found = accountService.findByNumber(number);
+  if (!found) return { ok: false, error: 'No OXBANK account with this number.' };
+  return { ok: true, external: false, name: found.user.name, accountType: found.account.type, bank };
+}
+
+/** Own-account moves never need a PIN; payments to anyone else always do. */
+function requiresPin(_amountKobo, isOwnAccount = false) {
+  return !isOwnAccount;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Deposit (simulated — "add money" from an external card/bank)
+// ─────────────────────────────────────────────────────────────
+
+async function deposit(accountId, amountKobo, note = 'Deposit', userId = null) {
   await delay();
 
-  if (!Number.isInteger(amountKobo) || amountKobo <= 0) {
-    return { ok: false, error: 'Amount must be a positive integer (kobo).' };
-  }
-  if (amountKobo < 100) {
+  if (!Number.isInteger(amountKobo) || amountKobo < MIN_AMOUNT_KOBO) {
     return { ok: false, error: 'Minimum deposit is ₦1.' };
   }
+  if (amountKobo > 100_000_000) return { ok: false, error: 'Maximum single top-up is ₦1,000,000.' };
 
   const account = accountService.getAccount(accountId);
   if (!account) return { ok: false, error: 'Account not found.' };
+  if (userId && account.userId !== userId) return { ok: false, error: 'Account not found.' };
 
   try {
     const entry = accountService.appendLedgerEntry(accountId, 'credit', amountKobo, {
@@ -65,8 +131,8 @@ async function deposit(accountId, amountKobo, note = 'Deposit') {
 
     await notificationService.create(account.userId, {
       type: 'deposit',
-      title: 'Deposit Confirmed',
-      message: `₦${(amountKobo / 100).toLocaleString()} deposited to your ${account.type} account.`,
+      title: 'Deposit confirmed',
+      message: `${formatCurrency(amountKobo)} added to your ${account.type} account.`,
     });
 
     return { ok: true, entry };
@@ -88,10 +154,7 @@ async function withdraw(accountId, amountKobo, note = 'Withdrawal') {
 
   const account = accountService.getAccount(accountId);
   if (!account) return { ok: false, error: 'Account not found.' };
-
-  if (amountKobo > account.balance) {
-    return { ok: false, error: 'Insufficient funds.' };
-  }
+  if (amountKobo > account.balance) return { ok: false, error: 'Insufficient funds.' };
 
   try {
     const entry = accountService.appendLedgerEntry(accountId, 'debit', amountKobo, {
@@ -99,7 +162,6 @@ async function withdraw(accountId, amountKobo, note = 'Withdrawal') {
       category: 'Withdrawal',
       reference: `WDR${generateId().slice(0, 8).toUpperCase()}`,
     });
-
     return { ok: true, entry };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -107,115 +169,123 @@ async function withdraw(accountId, amountKobo, note = 'Withdrawal') {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Transfer (own accounts or external)
+// Transfer
 // ─────────────────────────────────────────────────────────────
 
 /**
  * @param {Object} params
+ * @param {string} params.userId            — the authenticated caller (must own fromAccountId)
  * @param {string} params.fromAccountId
- * @param {string} params.toAccountId  — OR use toAccountNumber
- * @param {string} [params.toAccountNumber]  — looked up if toAccountId not given
- * @param {number} params.amountKobo  — positive integer
+ * @param {string} [params.toAccountId]     — own-account / internal by id
+ * @param {string} [params.toAccountNumber] — 10-digit account number
+ * @param {string} [params.toBank]          — defaults to OXBANK; other banks are debit-only
+ * @param {string} [params.toName]          — required for other banks
+ * @param {number} params.amountKobo        — positive integer
+ * @param {string} [params.pin]             — required unless moving between own accounts
  * @param {string} [params.note]
- * @param {string} [params.category]
- * @param {string} params.idempotencyKey  — UUID for double-submit guard
+ * @param {string} params.idempotencyKey    — UUID for double-submit guard (alias: submissionId)
+ * @returns {Promise<{ok: boolean, error?: string, receipt?: Object, pinRequired?: boolean}>}
  */
 async function transfer({
+  userId,
   fromAccountId,
   toAccountId,
   toAccountNumber,
+  toBank = INTERNAL_BANK,
+  toName = '',
   amountKobo,
+  pin,
   note = '',
-  category = 'Transfer',
   submissionId,
   idempotencyKey = submissionId,
 }) {
   await delay();
 
   // ── Idempotency ──
-  if (idempotencyKey && isProcessed(idempotencyKey)) {
-    return { ok: true, cached: true, message: 'Transfer already processed.' };
+  if (idempotencyKey) {
+    const prior = processedResult(idempotencyKey);
+    if (prior) return { ok: true, cached: true, reference: prior.reference, message: 'Transfer already processed.' };
   }
 
-  // ── Validate amount ──
-  if (!Number.isInteger(amountKobo) || amountKobo <= 0) {
-    return { ok: false, error: 'Amount must be a positive integer.' };
-  }
-  if (amountKobo < 100) {
-    return { ok: false, error: 'Minimum transfer is ₦1.' };
-  }
+  // ── Caller & source account ──
+  if (!userId) return { ok: false, error: 'Not authenticated.' };
+  const fromUser = getUser(userId);
+  if (!fromUser) return { ok: false, error: 'Not authenticated.' };
+  if (fromUser.suspended) return { ok: false, error: 'Your account is suspended. Contact support.' };
 
-  // ── Resolve toAccount ──
+  const fromAccount = accountService.getAccount(fromAccountId);
+  if (!fromAccount || fromAccount.userId !== userId) return { ok: false, error: 'Source account not found.' };
+
+  // ── Amount ──
+  if (!Number.isInteger(amountKobo) || amountKobo <= 0) return { ok: false, error: 'Enter a valid amount.' };
+  if (amountKobo < MIN_AMOUNT_KOBO) return { ok: false, error: 'Minimum transfer is ₦1.' };
+
+  // ── Resolve destination ──
+  const isExternal = !toAccountId && toBank && toBank !== INTERNAL_BANK;
   let toAccount = null;
   let toUser = null;
 
-  if (toAccountId) {
-    toAccount = accountService.getAccount(toAccountId);
-    if (toAccount) {
-      const users = dbRead('users');
-      const u = users[toAccount.userId];
-      if (u) toUser = u;
-    }
-  } else if (toAccountNumber) {
-    const found = accountService.findByNumber(toAccountNumber);
-    if (found) {
-      toAccount = found.account;
-      toUser = found.user;
-    }
+  if (isExternal) {
+    if (!/^\d{10}$/.test(String(toAccountNumber || ''))) return { ok: false, error: 'Account number must be 10 digits.' };
+    if (!toName.trim()) return { ok: false, error: 'Enter the recipient name for other-bank transfers.' };
+  } else {
+    if (toAccountId) toAccount = accountService.getAccount(toAccountId);
+    else if (toAccountNumber) toAccount = accountService.findByNumber(String(toAccountNumber).trim())?.account || null;
+    if (!toAccount) return { ok: false, error: 'Recipient account not found.' };
+    toUser = getUser(toAccount.userId);
+    if (fromAccount.id === toAccount.id) return { ok: false, error: 'Cannot transfer to the same account.' };
+    if (toUser?.suspended) return { ok: false, error: 'Recipient account cannot receive funds.' };
   }
 
-  if (!toAccount) return { ok: false, error: 'Recipient account not found.' };
+  const isOwn = !isExternal && toAccount.userId === userId;
+  const category = isOwn ? 'Internal Transfer' : 'Transfer';
+  const recipientName = isExternal ? toName.trim() : toUser?.name || toAccount.number;
+  const recipientNumber = isExternal ? String(toAccountNumber) : toAccount.number;
 
-  // ── Validate accounts ──
-  const fromAccount = accountService.getAccount(fromAccountId);
-  if (!fromAccount) return { ok: false, error: 'Your account not found.' };
-
-  if (fromAccountId === toAccount.id) {
-    return { ok: false, error: 'Cannot transfer to the same account.' };
+  // ── Balance & limits ──
+  if (amountKobo > fromAccount.balance) return { ok: false, error: 'Insufficient funds.' };
+  if (!isOwn && amountKobo > remainingDailyLimit(userId)) {
+    return {
+      ok: false,
+      error: `This exceeds your daily transfer limit. Remaining today: ${formatCurrency(remainingDailyLimit(userId))}.`,
+    };
   }
 
-  // ── Overdraft check ──
-  if (amountKobo > fromAccount.balance) {
-    return { ok: false, error: 'Insufficient funds.' };
+  // ── PIN (verified here, not in the UI) ──
+  if (requiresPin(amountKobo, isOwn)) {
+    if (!pin) return { ok: false, pinRequired: true, error: 'Transaction PIN required.' };
+    const pinCheck = await authService.checkPin(userId, pin);
+    if (!pinCheck.ok) return { ok: false, pinError: true, locked: pinCheck.locked, error: pinCheck.error };
   }
 
-  // ── Low balance warning ──
-  const balanceAfterKobo = fromAccount.balance - amountKobo;
-  const LOW_BALANCE_THRESHOLD = 50_000_00; // 50,000 NGN
-
-  const reference = `TRF${generateId().slice(0, 8).toUpperCase()}`;
-  const fromUser = (() => {
-    const users = dbRead('users');
-    return users[fromAccount.userId];
-  })();
+  const reference = `TRF${generateId().slice(0, 10).toUpperCase().replace(/-/g, '')}`;
+  const debitNote = note.trim() || `Transfer to ${recipientName}`;
 
   // ── Atomic operation ──
   let debitEntry = null;
   let creditEntry = null;
-
   try {
-    // Step 1: Debit sender
-    debitEntry = accountService.appendLedgerEntry(fromAccountId, 'debit', amountKobo, {
-      note: note || `Transfer to ${toUser?.name || toAccount.number}`,
+    debitEntry = accountService.appendLedgerEntry(fromAccount.id, 'debit', amountKobo, {
+      note: debitNote,
       category,
       reference,
-      counterpartName: toUser?.name || null,
-      counterpartAccount: toAccount.number,
+      counterpartName: isExternal ? `${recipientName} · ${toBank}` : recipientName,
+      counterpartAccount: recipientNumber,
     });
 
-    // Step 2: Credit receiver
-    creditEntry = accountService.appendLedgerEntry(toAccount.id, 'credit', amountKobo, {
-      note: note || `Transfer from ${fromUser?.name || fromAccount.number}`,
-      category,
-      reference,
-      counterpartName: fromUser?.name || null,
-      counterpartAccount: fromAccount.number,
-    });
+    if (!isExternal) {
+      creditEntry = accountService.appendLedgerEntry(toAccount.id, 'credit', amountKobo, {
+        note: note.trim() || `Transfer from ${fromUser.name}`,
+        category: isOwn ? 'Internal Transfer' : 'Transfer In',
+        reference,
+        counterpartName: fromUser.name,
+        counterpartAccount: fromAccount.number,
+      });
+    }
   } catch (err) {
-    // Rollback debit if credit failed
     if (debitEntry) {
       try {
-        accountService.rollbackLedgerEntry(fromAccountId, debitEntry.id);
+        accountService.rollbackLedgerEntry(fromAccount.id, debitEntry.id);
       } catch (rollbackErr) {
         console.error('[Transfer] CRITICAL: rollback failed', rollbackErr);
       }
@@ -223,41 +293,46 @@ async function transfer({
     return { ok: false, error: `Transfer failed: ${err.message}` };
   }
 
-  // ── Mark idempotency ──
-  if (idempotencyKey) markProcessed(idempotencyKey);
+  if (idempotencyKey) markProcessed(idempotencyKey, reference);
 
   // ── Notifications ──
-  await notificationService.create(fromAccount.userId, {
-    type: 'transfer_sent',
-    title: 'Transfer Sent',
-    message: `₦${(amountKobo / 100).toLocaleString()} sent to ${toUser?.name || toAccount.number}.`,
-  });
-
-  if (toUser) {
-    await notificationService.create(toUser.id, {
-      type: 'transfer_received',
-      title: 'Money Received! 💸',
-      message: `₦${(amountKobo / 100).toLocaleString()} received from ${fromUser?.name || fromAccount.number}.`,
+  if (!isOwn) {
+    await notificationService.create(userId, {
+      type: 'transfer_sent',
+      title: 'Transfer sent',
+      message: `${formatCurrency(amountKobo)} sent to ${recipientName}${isExternal ? ` (${toBank})` : ''}. Ref ${reference}.`,
     });
+    if (toUser) {
+      await notificationService.create(toUser.id, {
+        type: 'transfer_received',
+        title: 'Money received 💸',
+        message: `${formatCurrency(amountKobo)} received from ${fromUser.name}.`,
+      });
+    }
   }
 
-  // ── Low balance notification ──
-  if (balanceAfterKobo < LOW_BALANCE_THRESHOLD) {
-    await notificationService.create(fromAccount.userId, {
+  const balanceAfter = debitEntry.balanceAfter;
+  if (balanceAfter < LOW_BALANCE_THRESHOLD) {
+    await notificationService.create(userId, {
       type: 'low_balance',
-      title: 'Low Balance Alert',
-      message: `Your ${fromAccount.type} account balance is ₦${(balanceAfterKobo / 100).toLocaleString()}.`,
+      title: 'Low balance alert',
+      message: `Your ${fromAccount.type} account balance is ${formatCurrency(balanceAfter)}.`,
     });
   }
 
-  return { ok: true, debitEntry, creditEntry, reference };
-}
+  const receipt = {
+    reference,
+    status: 'Successful',
+    amountKobo,
+    fee: 0,
+    createdAt: debitEntry.createdAt,
+    note: debitNote,
+    from: { name: fromUser.name, accountNumber: fromAccount.number, type: fromAccount.type, bank: INTERNAL_BANK },
+    to: { name: recipientName, accountNumber: recipientNumber, bank: isExternal ? toBank : INTERNAL_BANK },
+    balanceAfter,
+  };
 
-/**
- * Check if a transfer requires PIN (above threshold).
- */
-function requiresPin(amountKobo) {
-  return amountKobo >= PIN_THRESHOLD_KOBO;
+  return { ok: true, debitEntry, creditEntry, reference, receipt };
 }
 
 export const execute = transfer;
@@ -267,6 +342,9 @@ export const transferService = {
   deposit,
   withdraw,
   transfer,
+  lookupAccount,
   requiresPin,
-  PIN_THRESHOLD_KOBO,
+  sentToday,
+  remainingDailyLimit,
+  DAILY_LIMIT_KOBO,
 };

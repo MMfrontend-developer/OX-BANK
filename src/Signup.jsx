@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import './assets/Style.css/Signup.css';
 import Footer from './Footer';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Mail, Lock, UserPlus, Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { User, Mail, Lock, UserPlus, Eye, EyeOff, AlertCircle, CheckCircle2, KeyRound } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { useToast } from './context/ToastContext';
 
@@ -24,6 +24,7 @@ const Signup = () => {
     email: '',
     password: '',
     confirmPassword: '',
+    pin: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -36,7 +37,8 @@ const Signup = () => {
   const strength = getStrength(form.password);
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: name === 'pin' ? value.replace(/\D/g, '').slice(0, 4) : value });
     setError('');
   };
 
@@ -54,12 +56,22 @@ const Signup = () => {
       return;
     }
 
+    if (!/^\d{4}$/.test(form.pin)) {
+      setError('Choose a 4-digit transaction PIN.');
+      return;
+    }
+    if (/^(\d)\1{3}$/.test(form.pin) || ['1234', '4321', '0123', '9876'].includes(form.pin)) {
+      setError('Choose a less predictable PIN.');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const res = await signup({
         name: form.name,
         email: form.email,
         password: form.password,
+        pin: form.pin,
       });
 
       if (res.ok) {
@@ -188,6 +200,25 @@ const Signup = () => {
               {form.confirmPassword && form.password === form.confirmPassword && (
                 <p className="pw-match"><CheckCircle2 size={14} /> Passwords match</p>
               )}
+            </div>
+
+            <div className="input-field">
+              <label htmlFor="signup-pin">Transaction PIN</label>
+              <div className="password-wrapper">
+                <KeyRound size={18} className="input-icon" />
+                <input
+                  id="signup-pin"
+                  type="password"
+                  name="pin"
+                  inputMode="numeric"
+                  placeholder="4 digits"
+                  value={form.pin}
+                  onChange={handleChange}
+                  required
+                  autoComplete="off"
+                />
+              </div>
+              <p className="pw-match" style={{ opacity: 0.8 }}>Used to approve transfers and reveal card details.</p>
             </div>
 
             <div className="auth-terms">

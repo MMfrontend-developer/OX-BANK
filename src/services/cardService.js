@@ -5,7 +5,15 @@
  */
 
 import { dbRead, dbUpdate } from './db.js';
-import { generateId, verifyPassword } from './cryptoService.js';
+import { generateId } from './cryptoService.js';
+import { authService } from './authService.js';
+
+export const DEFAULT_CONTROLS = { online: true, international: false, atm: true, contactless: true };
+
+function defaultExpiry() {
+  const d = new Date();
+  return `${String(d.getMonth() + 1).padStart(2, '0')}/${String((d.getFullYear() + 4) % 100).padStart(2, '0')}`;
+}
 
 const delay = (ms = 250) => new Promise((r) => setTimeout(r, ms + Math.random() * 100));
 
@@ -26,8 +34,9 @@ export function buildCard(accountId, userId) {
     maskedNumber: masked,
     fullNumber,
     cvv: String(Math.floor(100 + Math.random() * 900)),
-    expiry: '12/29',
+    expiry: defaultExpiry(),
     frozen: false,
+    controls: { ...DEFAULT_CONTROLS },
     spendingLimit: 200_000_000, // 2,000,000 NGN default (in kobo)
     totalSpentThisCycle: 0,
     createdAt: new Date().toISOString(),
@@ -68,9 +77,11 @@ async function unfreezeCard(accountId) {
 
 async function setSpendingLimit(accountId, limitKobo) {
   await delay();
-  if (!Number.isInteger(limitKobo) || limitKobo <= 0) {
-    return { ok: false, error: 'Limit must be a positive integer (kobo).' };
+  if (!Number.isInteger(limitKobo) || limitKobo < 1_000_00) {
+    return { ok: false, error: 'Limit must be at least ₦1,000.' };
   }
+  if (limitKobo > 1_000_000_000) return { ok: false, error: 'Limit cannot exceed ₦10,000,000.' };
+  if (!getCard(accountId)) return { ok: false, error: 'Card not found.' };
   dbUpdate('cards', (cards) => ({
     ...cards,
     [accountId]: { ...cards[accountId], spendingLimit: limitKobo },
@@ -101,16 +112,37 @@ function canCharge(accountId, amountKobo) {
  */
 async function revealCardDetails(accountId, userId, pin) {
   await delay();
-  const users = dbRead('users');
-  const user = users[userId];
-  if (!user) return { ok: false, error: 'User not found.' };
+  const card = getCard(accountId);
+  if (!card || card.userId !== userId) return { ok: false, error: 'Card not found.' };
 
-  const valid = await verifyPassword(pin, user.pinHash);
-  if (!valid) return { ok: false, error: 'Incorrect PIN.' };
+  const check = await authService.checkPin(userId, pin);
+  if (!check.ok) return { ok: false, error: check.error, locked: check.locked };
 
+  return { ok: true, card };
+}
+
+/** Toggle a card control (online, international, atm, contactless). */
+async function setControl(accountId, control, enabled) {
+  await delay(120);
+  if (!(control in DEFAULT_CONTROLS)) return { ok: false, error: 'Unknown card control.' };
   const card = getCard(accountId);
   if (!card) return { ok: false, error: 'Card not found.' };
+  const controls = { ...DEFAULT_CONTROLS, ...card.controls, [control]: Boolean(enabled) };
+  dbUpdate('cards', (cards) => ({ ...cards, [accountId]: { ...cards[accountId], controls } }));
+  return { ok: true, controls };
+}
 
+/** Cancel the current card and issue a new number (e.g. lost/compromised). */
+async function replaceCard(accountId, userId) {
+  await delay();
+  const old = getCard(accountId);
+  if (!old || old.userId !== userId) return { ok: false, error: 'Card not found.' };
+  const card = {
+    ...buildCard(accountId, userId),
+    spendingLimit: old.spendingLimit,
+    controls: { ...DEFAULT_CONTROLS, ...old.controls },
+  };
+  dbUpdate('cards', (cards) => ({ ...cards, [accountId]: card }));
   return { ok: true, card };
 }
 
@@ -141,9 +173,13 @@ export {
   setSpendingLimit,
   canCharge,
   revealCardDetails,
+  setControl,
+  replaceCard,
 };
 
 export const cardService = {
+  setControl,
+  replaceCard,
   buildCard,
   getCard,
   getAllUserCards,

@@ -4,6 +4,8 @@
  */
 
 import { dbRead, dbUpdate } from './db.js';
+import { accountService } from './accountService.js';
+import { savingsService } from './savingsService.js';
 
 const delay = (ms = 200) => new Promise((r) => setTimeout(r, ms + Math.random() * 100));
 
@@ -20,6 +22,17 @@ function sanitize(user) {
   return safe;
 }
 
+/** Verify every account's stored balance equals the sum of its ledger. */
+function verifyAllLedgers(adminId) {
+  requireAdmin(adminId);
+  const accounts = Object.values(dbRead('accounts'));
+  const failures = accounts
+    .map((a) => ({ account: a, check: accountService.verifyLedger(a.id) }))
+    .filter((r) => !r.check.ok)
+    .map((r) => ({ accountId: r.account.id, number: r.account.number, ...r.check }));
+  return { ok: failures.length === 0, checked: accounts.length, failures };
+}
+
 async function listUsers(adminId) {
   await delay();
   requireAdmin(adminId);
@@ -28,10 +41,9 @@ async function listUsers(adminId) {
   const accounts = dbRead('accounts');
 
   return Object.values(users).map((u) => {
-    const { passwordHash, pinHash, ...safe } = u;
     const userAccounts = Object.values(accounts).filter((a) => a.userId === u.id);
     const totalBalance = userAccounts.reduce((sum, a) => sum + a.balance, 0);
-    return { ...safe, accountCount: userAccounts.length, totalBalance };
+    return { ...sanitize(u), accountCount: userAccounts.length, totalBalance };
   });
 }
 
@@ -110,35 +122,46 @@ async function getStats(adminId) {
 
 async function getAdminStats(adminId) {
   await delay();
+  requireAdmin(adminId);
   const users = dbRead('users');
   const accounts = dbRead('accounts');
+  const ledger = dbRead('ledger');
 
   const userList = Object.values(users).map((u) => {
-    const { passwordHash, pinHash, ...safe } = u;
     const userAccounts = Object.values(accounts).filter((a) => a.userId === u.id);
     const totalBalanceKobo = userAccounts.reduce((sum, a) => sum + a.balance, 0);
     return {
-      ...safe,
+      ...sanitize(u),
       accounts: userAccounts,
       totalBalanceKobo,
+      goalsKobo: savingsService.totalSaved(u.id),
     };
   });
 
-  const totalMoneyKobo = userList.reduce((s, u) => s + u.totalBalanceKobo, 0);
+  const depositsKobo = userList.reduce((s, u) => s + u.totalBalanceKobo, 0);
+  const goalsKobo = savingsService.totalHeldAllUsers();
+  const transactionCount = Object.values(ledger).reduce((n, e) => n + e.length, 0);
 
   return {
     userCount: userList.length,
+    suspendedCount: userList.filter((u) => u.suspended).length,
     accountCount: Object.keys(accounts).length,
-    totalMoneyKobo,
+    depositsKobo,
+    goalsKobo,
+    totalMoneyKobo: depositsKobo + goalsKobo,
+    transactionCount,
+    integrity: verifyAllLedgers(adminId),
     users: userList,
   };
 }
 
-async function toggleUserSuspension(targetUserId) {
+async function toggleUserSuspension(adminId, targetUserId) {
   await delay();
+  requireAdmin(adminId);
   const users = dbRead('users');
   const user = users[targetUserId];
   if (!user) return { ok: false, error: 'User not found' };
+  if (user.role === 'admin') return { ok: false, error: 'Admin accounts cannot be suspended here.' };
 
   const nextState = !user.suspended;
   dbUpdate('users', (users) => ({
@@ -157,9 +180,11 @@ export {
   getStats,
   getAdminStats,
   toggleUserSuspension,
+  verifyAllLedgers,
 };
 
 export const adminService = {
+  verifyAllLedgers,
   listUsers,
   getAllTransactions,
   suspendUser,

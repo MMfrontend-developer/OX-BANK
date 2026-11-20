@@ -1,394 +1,389 @@
-import React, { useState } from 'react';
-import Footer from '../Footer';
-import '../assets/Style.css/Transfers.css';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Send, ArrowLeftRight, Building2, Search, Trash2, CheckCircle2, Printer, UserPlus, Users } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { useData } from '../context/DataContext';
 import { useToast } from '../context/ToastContext';
-import { formatCurrency, nairaToKobo } from '../utils/currency';
+import { transferService, NIGERIAN_BANKS, INTERNAL_BANK, DAILY_LIMIT_KOBO } from '../services/transferService';
+import { beneficiaryService } from '../services/beneficiaryService';
 import { generateId } from '../services/cryptoService';
-import { execute as executeTransfer } from '../services/transferService';
-import PinModal from '../components/PinModal';
-import { Send, ArrowLeftRight, Building2, User, CheckCircle2, AlertCircle, Clock, Search } from 'lucide-react';
+import { formatCurrency, nairaToKobo } from '../utils/currency';
+import { printReceipt } from '../utils/documents';
+import { Alert, AmountInput, Modal, Money, PinModal, Empty } from '../components/ui';
 
-const SAVED_BENEFICIARIES = [
-  { id: '1', name: 'Alice Smith', accountNumber: '1000000002', bank: 'OXBANK' },
-  { id: '2', name: 'John Doe (Savings)', accountNumber: '1000000001', bank: 'OXBANK' },
-  { id: '3', name: 'Tech Solutions Ltd', accountNumber: '2019482941', bank: 'First Tech Bank' },
+const MODES = [
+  { id: 'oxbank', label: 'OXBANK account', icon: Send },
+  { id: 'other', label: 'Other banks', icon: Building2 },
+  { id: 'own', label: 'My accounts', icon: ArrowLeftRight },
 ];
 
-const NIGERIAN_BANKS = [
-  'OXBANK (Internal)',
-  'Access Bank',
-  'First Bank of Nigeria',
-  'GTBank',
-  'Kuda Bank',
-  'Moniepoint',
-  'OPay',
-  'United Bank for Africa (UBA)',
-  'Zenith Bank',
-];
+const blankForm = (fromAccountId = '') => ({
+  fromAccountId,
+  toAccountId: '',
+  accountNumber: '',
+  bank: NIGERIAN_BANKS[1],
+  name: '',
+  amount: '',
+  note: '',
+  save: false,
+});
 
-const TransfersPage = () => {
+export default function TransfersPage() {
   const { user } = useAuth();
-  const { accounts, primaryAccount, transactions, refreshData } = useData();
+  const { accounts, primaryAccount, beneficiaries, refresh } = useData();
   const { toast } = useToast();
 
-  const [transferType, setTransferType] = useState('oxbank'); // 'oxbank' | 'own' | 'other'
-  const [form, setForm] = useState({
-    fromAccountId: primaryAccount?.id || '',
-    toAccountNumber: '',
-    toName: '',
-    targetBank: 'OXBANK (Internal)',
-    amount: '',
-    note: '',
-  });
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [pendingTransfer, setPendingTransfer] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [mode, setMode] = useState('oxbank');
+  const [form, setForm] = useState(() => blankForm(primaryAccount?.id));
+  const [lookup, setLookup] = useState(null); // { ok, name, error }
+  const [step, setStep] = useState('form'); // form | review | done
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [showPin, setShowPin] = useState(false);
+  const [receipt, setReceipt] = useState(null);
+  const [idemKey, setIdemKey] = useState(generateId);
+  const [search, setSearch] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
-  const selectedSourceAccount = accounts.find((a) => a.id === (form.fromAccountId || primaryAccount?.id)) || primaryAccount;
-  const sourceBalanceKobo = selectedSourceAccount?.balance || 0;
+  const source = accounts.find((a) => a.id === form.fromAccountId) || primaryAccount;
+  const ownTargets = accounts.filter((a) => a.id !== source?.id);
+  const amountKobo = nairaToKobo(form.amount);
+  const remaining = user ? transferService.remainingDailyLimit(user.id) : 0;
+  const bank = mode === 'other' ? form.bank : INTERNAL_BANK;
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+  useEffect(() => {
+    if (!form.fromAccountId && primaryAccount) setForm((f) => ({ ...f, fromAccountId: primaryAccount.id }));
+  }, [primaryAccount, form.fromAccountId]);
+
+  // Live name enquiry for OXBANK numbers
+  useEffect(() => {
+    if (mode !== 'oxbank') return setLookup(null);
+    if (form.accountNumber.length !== 10) return setLookup(null);
+    const res = transferService.lookupAccount(form.accountNumber, INTERNAL_BANK);
+    setLookup(res);
+    if (res.ok) setForm((f) => ({ ...f, name: res.name }));
+  }, [form.accountNumber, mode]);
+
+  const set = (k) => (v) => {
+    setForm((f) => ({ ...f, [k]: typeof v === 'object' && v?.target ? v.target.value : v }));
     setError('');
   };
 
-  const selectBeneficiary = (b) => {
-    setForm({
-      ...form,
-      toAccountNumber: b.accountNumber,
-      toName: b.name,
-      targetBank: b.bank,
-    });
-    toast.info(`Selected ${b.name}`);
+  const switchMode = (m) => {
+    setMode(m);
+    setForm(blankForm(form.fromAccountId));
+    setError('');
+    setLookup(null);
   };
 
-  const handleSubmit = (e) => {
+  const pickBeneficiary = (b) => {
+    const isInternal = b.bank === INTERNAL_BANK;
+    setMode(isInternal ? 'oxbank' : 'other');
+    setForm((f) => ({ ...blankForm(f.fromAccountId), accountNumber: b.accountNumber, bank: isInternal ? NIGERIAN_BANKS[1] : b.bank, name: b.name }));
+    setError('');
+  };
+
+  const filteredBeneficiaries = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return beneficiaries.filter((b) => !q || b.name.toLowerCase().includes(q) || b.accountNumber.includes(q) || b.bank.toLowerCase().includes(q));
+  }, [beneficiaries, search]);
+
+  const recipient = useMemo(() => {
+    if (mode === 'own') {
+      const t = accounts.find((a) => a.id === (form.toAccountId || ownTargets[0]?.id));
+      return t ? { name: `${t.type} account`, accountNumber: t.number, bank: INTERNAL_BANK, id: t.id } : null;
+    }
+    return { name: form.name.trim(), accountNumber: form.accountNumber, bank };
+  }, [mode, accounts, form, ownTargets, bank]);
+
+  const review = (e) => {
     e.preventDefault();
-    setError('');
-
-    const amountNaira = parseFloat(form.amount);
-    if (!amountNaira || amountNaira <= 0) {
-      setError('Please enter a valid transfer amount.');
-      return;
+    if (!source) return setError('No source account.');
+    if (mode === 'own' && !recipient) return setError('You need a second account to move money between.');
+    if (mode !== 'own') {
+      if (!/^\d{10}$/.test(form.accountNumber)) return setError('Enter a 10-digit account number.');
+      if (mode === 'oxbank' && !lookup?.ok) return setError(lookup?.error || 'We could not verify this account.');
+      if (!form.name.trim()) return setError('Enter the recipient name.');
+      if (mode === 'oxbank' && source.number === form.accountNumber) return setError('You cannot send money to the same account.');
     }
+    if (!amountKobo) return setError('Enter an amount.');
+    if (amountKobo > source.balance) return setError(`Insufficient funds. Available: ${formatCurrency(source.balance)}.`);
+    if (mode !== 'own' && amountKobo > remaining) return setError(`Exceeds your remaining daily limit of ${formatCurrency(remaining)}.`);
+    setStep('review');
+  };
 
-    const amountKobo = nairaToKobo(amountNaira);
-    if (amountKobo > sourceBalanceKobo) {
-      setError('Insufficient funds in the selected source account.');
-      return;
-    }
-
-    let recipientAcc = form.toAccountNumber.trim();
-    if (transferType === 'own') {
-      const otherOwn = accounts.find((a) => a.id !== selectedSourceAccount.id);
-      if (!otherOwn) {
-        setError('You do not have a second account to transfer between.');
-        return;
-      }
-      recipientAcc = otherOwn.accountNumber;
-    }
-
-    if (!recipientAcc) {
-      setError('Please enter a destination account number.');
-      return;
-    }
-
-    const payload = {
-      fromAccountId: selectedSourceAccount.id,
-      toAccountNumber: recipientAcc,
-      toName: form.toName.trim() || (transferType === 'own' ? 'Own Account' : 'Recipient'),
+  const execute = async (pin) => {
+    setBusy(true);
+    const res = await transferService.transfer({
+      userId: user.id,
+      fromAccountId: source.id,
+      ...(mode === 'own' ? { toAccountId: recipient.id } : { toAccountNumber: form.accountNumber, toBank: bank, toName: form.name }),
       amountKobo,
-      note: form.note.trim() || `Transfer to ${form.toName || recipientAcc}`,
-      submissionId: generateId(),
-    };
+      pin,
+      note: form.note,
+      idempotencyKey: idemKey,
+    });
+    setBusy(false);
 
-    if (amountNaira >= 50000) {
-      setPendingTransfer(payload);
-      setShowPinModal(true);
-    } else {
-      runTransfer(payload);
+    if (!res.ok) {
+      if (res.pinError || res.pinRequired) return res; // shown inside the PIN modal
+      setShowPin(false);
+      setStep('form');
+      setError(res.error);
+      return res;
     }
+
+    if (form.save && mode !== 'own' && !beneficiaryService.exists(user.id, form.accountNumber, bank)) {
+      await beneficiaryService.add(user.id, { name: form.name, accountNumber: form.accountNumber, bank });
+    }
+    setShowPin(false);
+    setReceipt(res.receipt || null);
+    setStep('done');
+    refresh();
+    toast.success(`${formatCurrency(amountKobo)} sent.`);
+    return res;
   };
 
-  const runTransfer = async (payload, pin = null) => {
-    setIsSubmitting(true);
-    setError('');
+  const confirm = () => (mode === 'own' ? execute() : setShowPin(true));
 
-    try {
-      const res = await executeTransfer(user.id, { ...payload, pin });
-      if (res.ok) {
-        setIsSuccess(true);
-        toast.success(`Transferred ${formatCurrency(payload.amountKobo)} successfully!`);
-        await refreshData();
-        setTimeout(() => {
-          setIsSuccess(false);
-          setShowPinModal(false);
-          setPendingTransfer(null);
-          setForm({
-            fromAccountId: primaryAccount?.id || '',
-            toAccountNumber: '',
-            toName: '',
-            targetBank: 'OXBANK (Internal)',
-            amount: '',
-            note: '',
-          });
-        }, 2200);
-      } else {
-        setError(res.error || 'Transfer failed.');
-        toast.error(res.error || 'Transfer failed');
-      }
-    } catch (err) {
-      setError(err.message || 'Error processing transfer.');
-    } finally {
-      setIsSubmitting(false);
-    }
+  const startOver = () => {
+    setStep('form');
+    setReceipt(null);
+    setIdemKey(generateId());
+    setForm(blankForm(form.fromAccountId));
+    setLookup(null);
   };
 
-  const handlePinSubmit = (pin) => {
-    if (pendingTransfer) {
-      runTransfer(pendingTransfer, pin);
-    }
+  const removeBeneficiary = async () => {
+    await beneficiaryService.remove(user.id, confirmDelete.id);
+    toast.info(`${confirmDelete.name} removed.`);
+    setConfirmDelete(null);
+    refresh();
   };
+
+  const alreadySaved = mode !== 'own' && form.accountNumber.length === 10 && beneficiaries.some((b) => b.accountNumber === form.accountNumber && b.bank === bank);
 
   return (
-    <div className="transfers-page animate-fade-in">
-      <div className="transfers-container">
-        <div className="transfers-header">
-          <h1 className="text-gradient">Money Transfers</h1>
-          <p className="transfers-subtitle">Send money instantly across accounts or external banks with zero transaction fees.</p>
+    <div className="bk-page">
+      <div className="bk-page-head">
+        <div>
+          <h1>Send money</h1>
+          <p>Instant transfers to OXBANK and other Nigerian banks. No transfer fees.</p>
         </div>
+        <span className="bk-badge">Daily limit left: <Money kobo={remaining} mask={false} /> of {formatCurrency(DAILY_LIMIT_KOBO)}</span>
+      </div>
 
-        {/* TYPE SELECTOR TABS */}
-        <div className="transfer-type-tabs glass">
-          <button
-            className={`tab-btn ${transferType === 'oxbank' ? 'active' : ''}`}
-            onClick={() => { setTransferType('oxbank'); setError(''); }}
-          >
-            <Send size={18} /> OXBANK Account
-          </button>
-          <button
-            className={`tab-btn ${transferType === 'own' ? 'active' : ''}`}
-            onClick={() => { setTransferType('own'); setError(''); }}
-          >
-            <ArrowLeftRight size={18} /> Between Own Accounts
-          </button>
-          <button
-            className={`tab-btn ${transferType === 'other' ? 'active' : ''}`}
-            onClick={() => { setTransferType('other'); setError(''); }}
-          >
-            <Building2 size={18} /> Other Banks
-          </button>
-        </div>
-
-        <div className="transfers-grid">
-          {/* TRANSFER FORM */}
-          <div className="transfer-form-card glass">
-            {isSuccess ? (
-              <div className="transfer-success-box">
-                <CheckCircle2 size={54} color="#10b981" />
-                <h2>Transfer Complete!</h2>
-                <p>Funds have been safely dispatched from your account.</p>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="transfers-form">
-                <h2>
-                  {transferType === 'oxbank'
-                    ? 'Transfer to OXBANK User'
-                    : transferType === 'own'
-                    ? 'Move Money Between Accounts'
-                    : 'Other Bank Transfer'}
-                </h2>
-
-                {error && (
-                  <div className="auth-error">
-                    <AlertCircle size={16} />
-                    <span>{error}</span>
-                  </div>
-                )}
-
-                {/* SOURCE ACCOUNT */}
-                <div className="input-field">
-                  <label>Source Account</label>
-                  <select
-                    name="fromAccountId"
-                    value={form.fromAccountId || primaryAccount?.id}
-                    onChange={handleChange}
-                    className="select-input"
-                  >
-                    {accounts.map((acc) => (
-                      <option key={acc.id} value={acc.id}>
-                        {acc.accountType.toUpperCase()} ({acc.accountNumber}) — Bal: {formatCurrency(acc.balance)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* DESTINATION FIELDS */}
-                {transferType === 'own' ? (
-                  <div className="own-transfer-info glass">
-                    <ArrowLeftRight size={20} />
-                    <span>
-                      Transferring to your other registered account ({accounts.find((a) => a.id !== selectedSourceAccount?.id)?.accountNumber || 'Checking'})
-                    </span>
-                  </div>
-                ) : (
-                  <>
-                    {transferType === 'other' && (
-                      <div className="input-field">
-                        <label>Destination Bank</label>
-                        <select
-                          name="targetBank"
-                          value={form.targetBank}
-                          onChange={handleChange}
-                          className="select-input"
-                        >
-                          {NIGERIAN_BANKS.map((b) => (
-                            <option key={b} value={b}>{b}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    <div className="input-field">
-                      <label>Recipient Account Number</label>
-                      <input
-                        type="text"
-                        name="toAccountNumber"
-                        placeholder="e.g. 1000000002"
-                        value={form.toAccountNumber}
-                        onChange={handleChange}
-                        required
-                      />
-                    </div>
-
-                    <div className="input-field">
-                      <label>Recipient Name</label>
-                      <input
-                        type="text"
-                        name="toName"
-                        placeholder="e.g. Alice Smith"
-                        value={form.toName}
-                        onChange={handleChange}
-                      />
-                    </div>
-                  </>
-                )}
-
-                {/* AMOUNT */}
-                <div className="input-field">
-                  <label>Amount (₦)</label>
-                  <input
-                    type="number"
-                    name="amount"
-                    placeholder="0.00"
-                    value={form.amount}
-                    onChange={handleChange}
-                    required
-                    min="1"
-                    step="0.01"
-                  />
-                  {form.amount && (
-                    <p className="available-hint">
-                      Available Balance: {formatCurrency(sourceBalanceKobo)}
-                    </p>
-                  )}
-                </div>
-
-                {/* NOTE */}
-                <div className="input-field">
-                  <label>Remark / Purpose</label>
-                  <input
-                    type="text"
-                    name="note"
-                    placeholder="e.g. Rent, Business, Gift"
-                    value={form.note}
-                    onChange={handleChange}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="btn btn-primary auth-submit flex-center"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <span className="auth-spinner"></span>
-                  ) : (
-                    <>
-                      <Send size={18} style={{ marginRight: '8px' }} />
-                      Transfer Funds Now
-                    </>
-                  )}
-                </button>
-              </form>
-            )}
-          </div>
-
-          {/* BENEFICIARIES & RECENT TRANSFERS */}
-          <div className="transfers-side-col">
-            {/* QUICK BENEFICIARIES */}
-            <div className="beneficiaries-card glass">
-              <h3>Saved Beneficiaries</h3>
-              <div className="beneficiaries-list">
-                {SAVED_BENEFICIARIES.map((b) => (
+      <div className="bk-grid">
+        <section className="bk-card">
+          {step === 'done' ? (
+            <div className="bk-center">
+              <div className="bk-success-mark"><CheckCircle2 size={34} /></div>
+              <h2>Transfer successful</h2>
+              <p className="bk-muted" style={{ margin: '6px 0 16px' }}>
+                {formatCurrency(amountKobo)} to {recipient?.name}
+              </p>
+              {receipt && (
+                <dl className="bk-summary" style={{ textAlign: 'left', marginBottom: 16 }}>
+                  <div><dt>Reference</dt><dd className="bk-mono">{receipt.reference}</dd></div>
+                  <div><dt>To</dt><dd>{receipt.to.name} · {receipt.to.bank} · {receipt.to.accountNumber}</dd></div>
+                  <div><dt>From</dt><dd>{receipt.from.type} · {receipt.from.accountNumber}</dd></div>
+                  <div><dt>Fee</dt><dd>₦0.00</dd></div>
+                  <div><dt>Date</dt><dd>{new Date(receipt.createdAt).toLocaleString()}</dd></div>
+                </dl>
+              )}
+              <div className="bk-actions" style={{ justifyContent: 'center' }}>
+                {receipt && (
                   <button
-                    key={b.id}
                     type="button"
-                    className="beneficiary-chip"
-                    onClick={() => selectBeneficiary(b)}
+                    className="bk-btn ghost"
+                    onClick={() => printReceipt({
+                      type: 'debit', amount: receipt.amountKobo, note: receipt.note, category: mode === 'own' ? 'Internal Transfer' : 'Transfer',
+                      accountType: receipt.from.type, accountNumber: receipt.from.accountNumber,
+                      counterpartName: `${receipt.to.name} · ${receipt.to.bank}`, counterpartAccount: receipt.to.accountNumber,
+                      balanceAfter: receipt.balanceAfter, createdAt: receipt.createdAt, reference: receipt.reference,
+                    }, user)}
                   >
-                    <div className="avatar-mini">{b.name.charAt(0)}</div>
-                    <div className="b-info">
-                      <p className="b-name">{b.name}</p>
-                      <p className="b-acc">{b.bank} • {b.accountNumber}</p>
-                    </div>
+                    <Printer size={16} /> Download receipt
+                  </button>
+                )}
+                <button type="button" className="bk-btn" onClick={startOver}>Make another transfer</button>
+              </div>
+            </div>
+          ) : step === 'review' ? (
+            <div>
+              <h2 style={{ marginBottom: 4 }}>Review transfer</h2>
+              <p className="bk-muted" style={{ marginBottom: 16 }}>Check the details. Transfers can't be reversed once sent.</p>
+              <div className="bk-center" style={{ marginBottom: 16 }}>
+                <div className="bk-big-amount">{formatCurrency(amountKobo)}</div>
+              </div>
+              <dl className="bk-summary">
+                <div><dt>To</dt><dd>{recipient.name}</dd></div>
+                <div><dt>Account</dt><dd className="bk-mono">{recipient.accountNumber} · {recipient.bank}</dd></div>
+                <div><dt>From</dt><dd>{source.type} · {source.number}</dd></div>
+                {form.note && <div><dt>Note</dt><dd>{form.note}</dd></div>}
+                <div><dt>Fee</dt><dd>₦0.00</dd></div>
+                <div><dt>Balance after</dt><dd><Money kobo={source.balance - amountKobo} /></dd></div>
+              </dl>
+              {error && <div style={{ marginTop: 12 }}><Alert>{error}</Alert></div>}
+              <div className="bk-modal-foot">
+                <button type="button" className="bk-btn ghost" onClick={() => setStep('form')} disabled={busy}>Edit</button>
+                <button type="button" className="bk-btn" onClick={confirm} disabled={busy}>
+                  {busy ? <span className="bk-spinner" /> : mode === 'own' ? 'Move money' : 'Confirm & enter PIN'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <form className="bk-form" onSubmit={review} noValidate>
+              <div className="bk-tabs" role="tablist" aria-label="Transfer type">
+                {MODES.map(({ id, label, icon: Icon }) => (
+                  <button key={id} type="button" role="tab" aria-selected={mode === id} className={mode === id ? 'active' : ''} onClick={() => switchMode(id)}>
+                    <Icon size={15} /> {label}
                   </button>
                 ))}
               </div>
-            </div>
 
-            {/* RECENT TRANSFERS LOG */}
-            <div className="recent-transfers-card glass">
-              <h3><Clock size={16} /> Recent Transfer Ledger</h3>
-              <div className="recent-transfers-list">
-                {transactions
-                  .filter((t) => t.category === 'Transfer')
-                  .slice(0, 5)
-                  .map((t) => (
-                    <div key={t.id} className="mini-transfer-item">
-                      <div>
-                        <p className="t-note">{t.note}</p>
-                        <p className="t-date">{t.date ? new Date(t.date).toLocaleDateString() : 'Today'}</p>
-                      </div>
-                      <div className={`t-amount ${t.type}`}>
-                        {t.type === 'credit' ? '+' : '-'}{formatCurrency(t.amountKobo)}
-                      </div>
-                    </div>
+              {error && <Alert>{error}</Alert>}
+
+              <div className="bk-field">
+                <label htmlFor="tf-from">From</label>
+                <select id="tf-from" value={form.fromAccountId} onChange={set('fromAccountId')}>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>{a.type} · {a.number} — {formatCurrency(a.balance)}</option>
                   ))}
+                </select>
+              </div>
+
+              {mode === 'own' ? (
+                <div className="bk-field">
+                  <label htmlFor="tf-to">To</label>
+                  {ownTargets.length ? (
+                    <select id="tf-to" value={form.toAccountId || ownTargets[0].id} onChange={set('toAccountId')}>
+                      {ownTargets.map((a) => <option key={a.id} value={a.id}>{a.type} · {a.number}</option>)}
+                    </select>
+                  ) : (
+                    <p className="bk-hint">You only have one account. Open another in <Link to="/profile">Profile</Link>.</p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {mode === 'other' && (
+                    <div className="bk-field">
+                      <label htmlFor="tf-bank">Bank</label>
+                      <select id="tf-bank" value={form.bank} onChange={set('bank')}>
+                        {NIGERIAN_BANKS.filter((b) => b !== INTERNAL_BANK).map((b) => <option key={b}>{b}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <div className="bk-field">
+                    <label htmlFor="tf-acct">Account number</label>
+                    <input
+                      id="tf-acct"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={10}
+                      placeholder="10-digit account number"
+                      value={form.accountNumber}
+                      onChange={(e) => set('accountNumber')(e.target.value.replace(/\D/g, ''))}
+                    />
+                    {mode === 'oxbank' && lookup && (
+                      <span className={`bk-hint ${lookup.ok ? 'ok' : 'err'}`}>
+                        {lookup.ok ? `✓ ${lookup.name}` : lookup.error}
+                      </span>
+                    )}
+                  </div>
+                  {mode === 'other' && (
+                    <div className="bk-field">
+                      <label htmlFor="tf-name">Account name</label>
+                      <input id="tf-name" placeholder="As it appears on the account" value={form.name} onChange={set('name')} />
+                      <span className="bk-hint">Simulated bank — check the name with the recipient.</span>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="bk-field">
+                <label htmlFor="tf-amt">Amount</label>
+                <AmountInput id="tf-amt" value={form.amount} onChange={set('amount')} />
+                <span className="bk-hint">Available: <Money kobo={source?.balance || 0} /></span>
+              </div>
+
+              <div className="bk-field">
+                <label htmlFor="tf-note">Note (optional)</label>
+                <input id="tf-note" maxLength={60} placeholder="e.g. Rent, Gift" value={form.note} onChange={set('note')} />
+              </div>
+
+              {mode !== 'own' && !alreadySaved && (
+                <label className="bk-check">
+                  <input type="checkbox" checked={form.save} onChange={(e) => set('save')(e.target.checked)} />
+                  Save as beneficiary
+                </label>
+              )}
+
+              <button type="submit" className="bk-btn block">Continue</button>
+            </form>
+          )}
+        </section>
+
+        <section className="bk-card" aria-labelledby="ben-h">
+          <div className="bk-card-head">
+            <h2 id="ben-h">Beneficiaries</h2>
+            <span className="bk-subtle">{beneficiaries.length} saved</span>
+          </div>
+          {beneficiaries.length > 3 && (
+            <div className="bk-field" style={{ marginBottom: 8 }}>
+              <label htmlFor="ben-search" className="bk-sr-only">Search beneficiaries</label>
+              <div style={{ position: 'relative' }}>
+                <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--bk-text-3)' }} />
+                <input id="ben-search" placeholder="Search" value={search} onChange={(e) => setSearch(e.target.value)} className="bk-has-icon" />
               </div>
             </div>
-          </div>
-        </div>
+          )}
+          {filteredBeneficiaries.length === 0 ? (
+            <Empty icon={beneficiaries.length ? Search : Users}>
+              {beneficiaries.length ? 'No matches.' : 'People you save will appear here for one-tap transfers.'}
+            </Empty>
+          ) : (
+            <div className="bk-list">
+              {filteredBeneficiaries.map((b) => (
+                <div key={b.id} className="bk-item">
+                  <button type="button" onClick={() => pickBeneficiary(b)} style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, background: 'none', border: 0, padding: 0, color: 'inherit', textAlign: 'left', letterSpacing: 0 }} aria-label={`Send to ${b.name}`}>
+                    <span className="bk-avatar sm">{b.name.split(' ').map((p) => p[0]).slice(0, 2).join('')}</span>
+                    <span className="bk-item-main">
+                      <span className="bk-item-title" style={{ display: 'block' }}>{b.name}</span>
+                      <span className="bk-item-sub" style={{ display: 'block' }}>{b.bank} · {b.accountNumber}</span>
+                    </span>
+                  </button>
+                  <button type="button" className="bk-copy" aria-label={`Remove ${b.name}`} onClick={() => setConfirmDelete(b)}>
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="bk-subtle" style={{ marginTop: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
+            <UserPlus size={14} /> Tick "Save as beneficiary" when sending to add someone.
+          </p>
+        </section>
       </div>
 
-      <Footer />
-
-      {/* PIN MODAL */}
-      {showPinModal && (
+      {showPin && (
         <PinModal
-          title="Security PIN Verification"
-          subtitle={`Enter 4-digit PIN to authorize transfer of ₦${parseFloat(form.amount).toLocaleString()}`}
-          onSubmit={handlePinSubmit}
-          onClose={() => setShowPinModal(false)}
-          isLoading={isSubmitting}
+          title="Authorize transfer"
+          subtitle={`Enter your PIN to send ${formatCurrency(amountKobo)} to ${recipient?.name}`}
+          onConfirm={execute}
+          onCancel={() => setShowPin(false)}
         />
+      )}
+
+      {confirmDelete && (
+        <Modal title="Remove beneficiary?" onClose={() => setConfirmDelete(null)}>
+          <p className="bk-muted">{confirmDelete.name} ({confirmDelete.bank} · {confirmDelete.accountNumber}) will be removed from your saved list.</p>
+          <div className="bk-modal-foot">
+            <button type="button" className="bk-btn ghost" onClick={() => setConfirmDelete(null)}>Cancel</button>
+            <button type="button" className="bk-btn danger" onClick={removeBeneficiary}>Remove</button>
+          </div>
+        </Modal>
       )}
     </div>
   );
-};
-
-export default TransfersPage;
+}
