@@ -19,6 +19,10 @@
  *   loginAttempts: { [email]: { count, lockedUntil } },
  *   loginActivity: { [userId]: LoginActivity[] },
  *   processedIdempotencyKeys: string[],
+ *   // V2
+ *   goals: { [userId]: SavingsGoal[] },
+ *   budgets: { [userId]: { [category]: limitKobo } },
+ *   beneficiaries: { [userId]: Beneficiary[] },
  * }
  *
  * Money: all amounts in KOBO (integer). 1 NGN = 100 kobo.
@@ -27,7 +31,7 @@
 import { hashPassword, generateId } from './cryptoService.js';
 
 const DB_KEY = 'oxbank_db';
-const CURRENT_VERSION = 1;
+const CURRENT_VERSION = 2;
 
 // ─────────────────────────────────────────────────────────────
 // Internal helpers
@@ -70,7 +74,7 @@ export function dbWrite(collection, value) {
  */
 export function dbUpdate(collection, fn) {
   const db = load() || { _version: CURRENT_VERSION };
-  const current = db[collection] ?? (Array.isArray(db[collection]) ? [] : {});
+  const current = db[collection] ?? {};
   const updated = fn(current);
   db[collection] = updated;
   save(db);
@@ -80,7 +84,7 @@ export function dbUpdate(collection, fn) {
 /** Hard reset — wipes everything and re-seeds */
 export async function resetDatabase() {
   localStorage.removeItem(DB_KEY);
-  _initialized = false;
+  _initialized = true;
   await seed();
 }
 
@@ -387,6 +391,85 @@ async function seed() {
     [adminId]: [],
   };
 
+  // ── Savings goals (funded from the demo Savings account so money is conserved) ──
+  const DAY = 86400000;
+  const savings = accounts[demoSavingsId];
+  const goalSpecs = [
+    { name: 'Emergency Fund', icon: '🛟', target: 100_000_000, saved: 35_000_000, daysAgo: 20, deadlineDays: 180 },
+    { name: 'New Laptop', icon: '💻', target: 120_000_000, saved: 48_000_000, daysAgo: 12, deadlineDays: 90 },
+  ];
+  const demoGoals = [];
+  for (const g of goalSpecs) {
+    const saved = Math.min(g.saved, Math.floor(savings.balance * 0.3));
+    if (saved <= 0) continue;
+    savings.balance -= saved;
+    ledger[demoSavingsId].push({
+      id: generateId(),
+      accountId: demoSavingsId,
+      userId: demoId,
+      type: 'debit',
+      amount: saved,
+      balanceAfter: savings.balance,
+      note: `Saved to goal: ${g.name}`,
+      category: 'Savings',
+      createdAt: new Date(Date.now() - g.daysAgo * DAY).toISOString(),
+      reference: `SAV${generateId().slice(0, 8).toUpperCase()}`,
+    });
+    demoGoals.push({
+      id: generateId(),
+      userId: demoId,
+      name: g.name,
+      icon: g.icon,
+      targetKobo: g.target,
+      savedKobo: saved,
+      deadline: new Date(Date.now() + g.deadlineDays * DAY).toISOString(),
+      createdAt: new Date(Date.now() - g.daysAgo * DAY).toISOString(),
+    });
+  }
+
+  // Budgets sized against this month's generated spend so the demo shows a
+  // realistic mix of on-track / near-limit / over-budget categories.
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+  const monthSpend = {};
+  for (const e of [...ledger[demoCheckingId], ...ledger[demoSavingsId]]) {
+    if (e.type === 'debit' && new Date(e.createdAt).getTime() >= monthStart) {
+      monthSpend[e.category] = (monthSpend[e.category] || 0) + e.amount;
+    }
+  }
+  const budgetPlan = [
+    ['Groceries', 1.8, 6_000_000],
+    ['Dining', 1.1, 3_000_000],
+    ['Shopping', 0.9, 8_000_000],
+    ['Transport', 2.2, 2_000_000],
+    ['Utilities', 1.5, 4_000_000],
+  ];
+  const ROUND = 500_000; // ₦5,000
+  const demoBudgets = Object.fromEntries(
+    budgetPlan.map(([cat, factor, fallback]) => {
+      const spent = monthSpend[cat] || 0;
+      const limit = spent ? Math.max(ROUND, Math.round((spent * factor) / ROUND) * ROUND) : fallback;
+      return [cat, limit];
+    }),
+  );
+
+  const budgets = {
+    [demoId]: demoBudgets,
+    [aliceId]: {},
+    [adminId]: {},
+  };
+
+  const now = new Date().toISOString();
+  const beneficiaries = {
+    [demoId]: [
+      { id: generateId(), name: 'Alice Johnson', accountNumber: aliceCheckingNo, bank: 'OXBANK', createdAt: now },
+      { id: generateId(), name: 'Chidi Okafor', accountNumber: '0123456789', bank: 'GTBank', createdAt: now },
+    ],
+    [aliceId]: [
+      { id: generateId(), name: 'Demo User', accountNumber: demoCheckingNo, bank: 'OXBANK', createdAt: now },
+    ],
+    [adminId]: [],
+  };
+
   const db = {
     _version: CURRENT_VERSION,
     users,
@@ -399,6 +482,9 @@ async function seed() {
     loginActivity: { [demoId]: [], [aliceId]: [], [adminId]: [] },
     processedIdempotencyKeys: [],
     sessions: {},
+    goals: { [demoId]: demoGoals, [aliceId]: [], [adminId]: [] },
+    budgets,
+    beneficiaries,
   };
 
   save(db);
@@ -424,8 +510,19 @@ export async function initDatabase() {
   }
 
   if (db._version < CURRENT_VERSION) {
-    // Future migrations go here
-    db._version = CURRENT_VERSION;
+    migrate(db);
     save(db);
+  }
+}
+
+/** Upgrade an older stored DB in place. */
+export function migrate(db) {
+  if (db._version < 2) {
+    // V2: savings goals, budgets, saved beneficiaries
+    db.goals = db.goals || {};
+    db.budgets = db.budgets || {};
+    db.beneficiaries = db.beneficiaries || {};
+    db.sessions = db.sessions || {};
+    db._version = 2;
   }
 }

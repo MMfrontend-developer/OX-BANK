@@ -1,462 +1,287 @@
-import React, { useState } from 'react';
-import Footer from './Footer';
-import './assets/Style.css/Dashboard.css';
-import { Link } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  Send, Plus, Receipt, PiggyBank, CreditCard, FileText, Copy, Check, ChevronRight,
+  ShieldCheck, ShieldAlert, TrendingUp, TrendingDown, CalendarClock, History, OctagonAlert, TriangleAlert,
+} from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { useData } from './context/DataContext';
 import { useToast } from './context/ToastContext';
-import { formatCurrency, formatCompact, nairaToKobo } from './utils/currency';
-import { generateId } from './services/cryptoService';
-import { execute as executeTransfer } from './services/transferService';
-import SpendingChart from './components/SpendingChart';
+import { transferService } from './services/transferService';
+import { formatCurrency, nairaToKobo } from './utils/currency';
+import { summarizeMonth, percentChange, budgetProgress, greeting } from './utils/insights';
+import { Money, Modal, AmountInput, Alert, TxRow, Empty } from './components/ui';
+import TxDetailModal from './components/TxDetailModal';
 import BalanceTrend from './components/BalanceTrend';
-import PinModal from './components/PinModal';
-import { SkeletonLine, SkeletonCard } from './components/Skeleton';
-import {
-  Eye,
-  EyeOff,
-  Send,
-  Download,
-  CreditCard,
-  ArrowUpRight,
-  ArrowDownLeft,
-  Plus,
-  Copy,
-  ChevronRight,
-  CircleCheck,
-  X,
-  AlertCircle,
-  TrendingUp,
-  TrendingDown,
-  ShieldCheck,
-  RefreshCw,
-  Wallet,
-  Zap,
-} from 'lucide-react';
+
+function CopyNumber({ number }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <span className="bk-account-num">
+      {number}
+      <button
+        type="button"
+        className="bk-copy"
+        aria-label={`Copy account number ${number}`}
+        onClick={() => navigator.clipboard?.writeText(number).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); })}
+      >
+        {copied ? <Check size={14} /> : <Copy size={14} />}
+      </button>
+    </span>
+  );
+}
+
+function AddMoneyModal({ accounts, userId, onClose, onDone }) {
+  const { toast } = useToast();
+  const [accountId, setAccountId] = useState(accounts[0]?.id || '');
+  const [amount, setAmount] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const kobo = nairaToKobo(amount);
+    if (!kobo) return setError('Enter an amount.');
+    setBusy(true);
+    const res = await transferService.deposit(accountId, kobo, 'Top-up from linked debit card', userId);
+    setBusy(false);
+    if (!res.ok) return setError(res.error);
+    toast.success(`${formatCurrency(kobo)} added to your account.`);
+    onDone();
+    onClose();
+  };
+
+  return (
+    <Modal title="Add money" onClose={onClose}>
+      <form className="bk-form" onSubmit={submit}>
+        <Alert kind="info">Simulated top-up from a linked debit card. No real card is charged.</Alert>
+        {error && <Alert>{error}</Alert>}
+        <div className="bk-field">
+          <label htmlFor="am-acc">To account</label>
+          <select id="am-acc" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+            {accounts.map((a) => <option key={a.id} value={a.id}>{a.type} · {a.number}</option>)}
+          </select>
+        </div>
+        <div className="bk-field">
+          <label htmlFor="am-amt">Amount</label>
+          <AmountInput id="am-amt" value={amount} onChange={(v) => { setAmount(v); setError(''); }} autoFocus />
+          <div className="bk-presets">
+            {[5000, 10000, 50000, 100000].map((n) => (
+              <button type="button" key={n} onClick={() => setAmount(String(n))}>₦{n.toLocaleString()}</button>
+            ))}
+          </div>
+        </div>
+        <div className="bk-modal-foot">
+          <button type="button" className="bk-btn ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="bk-btn" disabled={busy}>{busy ? <span className="bk-spinner" /> : 'Add money'}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const { accounts, primaryAccount, transactions, ledgerValid, loading, refreshData, resetDemoData } = useData();
-  const { toast } = useToast();
+  const { accounts, transactions, goals, budgets, bills, totalBalance, totalSaved, netWorth, ledgerValid, refresh } = useData();
+  const navigate = useNavigate();
+  const [showAddMoney, setShowAddMoney] = useState(false);
+  const [selectedTx, setSelectedTx] = useState(null);
 
-  const [showBalance, setShowBalance] = useState(true);
-  const [showTransferModal, setShowTransferModal] = useState(false);
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [pendingTransfer, setPendingTransfer] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [transferError, setTransferError] = useState('');
-  const [copiedToast, setCopiedToast] = useState(false);
-
-  const [form, setForm] = useState({
-    recipientAccount: '',
-    recipientName: '',
-    amount: '',
-    note: '',
-  });
-
-  const savingsGoals = [
-    { id: 1, name: 'Emergency Fund', target: 50000000, current: 35000000, color: '#551A8B' }, // in kobo
-    { id: 2, name: 'New Laptop', target: 120000000, current: 85000000, color: '#ff6600' },
-  ];
-
-  const balanceKobo = primaryAccount ? primaryAccount.balance : 0;
-  const accountNumber = primaryAccount ? primaryAccount.accountNumber : 'OX-------------';
-
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-    setTransferError('');
-  };
-
-  const initiateTransfer = (e) => {
-    e.preventDefault();
-    setTransferError('');
-
-    const amountNaira = parseFloat(form.amount);
-    if (!form.recipientAccount.trim() || !amountNaira || amountNaira <= 0) {
-      setTransferError('Please enter a valid recipient account number and amount.');
-      return;
-    }
-
-    const amountKobo = nairaToKobo(amountNaira);
-    if (amountKobo > balanceKobo) {
-      setTransferError('Insufficient funds for this transfer.');
-      return;
-    }
-
-    const payload = {
-      fromAccountId: primaryAccount.id,
-      toAccountNumber: form.recipientAccount.trim(),
-      toName: form.recipientName.trim() || 'Beneficiary',
-      amountKobo,
-      note: form.note.trim() || 'Transfer via OXBANK',
-      submissionId: generateId(),
-    };
-
-    // If amount is over N50,000 require PIN verification
-    if (amountNaira >= 50000) {
-      setPendingTransfer(payload);
-      setShowPinModal(true);
-    } else {
-      processTransfer(payload);
-    }
-  };
-
-  const processTransfer = async (transferPayload, pin = null) => {
-    setIsSubmitting(true);
-    setTransferError('');
-
-    try {
-      const res = await executeTransfer(user.id, { ...transferPayload, pin });
-      if (res.ok) {
-        setIsSuccess(true);
-        toast.success(`Sent ${formatCurrency(transferPayload.amountKobo)} successfully!`);
-        await refreshData();
-        setTimeout(() => {
-          setIsSuccess(false);
-          setShowTransferModal(false);
-          setShowPinModal(false);
-          setPendingTransfer(null);
-          setForm({ recipientAccount: '', recipientName: '', amount: '', note: '' });
-        }, 2200);
-      } else {
-        setTransferError(res.error || 'Transfer failed.');
-        toast.error(res.error || 'Transfer error');
-      }
-    } catch (err) {
-      setTransferError(err.message || 'Error executing transfer.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handlePinSubmit = (pin) => {
-    if (pendingTransfer) {
-      processTransfer(pendingTransfer, pin);
-    }
-  };
-
-  const copyToClipboard = () => {
-    if (!accountNumber) return;
-    navigator.clipboard.writeText(accountNumber).then(() => {
-      setCopiedToast(true);
-      toast.info('Account number copied!');
-      setTimeout(() => setCopiedToast(false), 2000);
-    });
-  };
-
-  const openModal = () => {
-    setTransferError('');
-    setIsSuccess(false);
-    setShowTransferModal(true);
-  };
-
-  const closeModal = () => {
-    setShowTransferModal(false);
-    setShowPinModal(false);
-    setPendingTransfer(null);
-    setForm({ recipientAccount: '', recipientName: '', amount: '', note: '' });
-    setTransferError('');
-  };
-
-  const totalIn = transactions.filter((t) => t.type === 'credit').reduce((a, t) => a + t.amountKobo, 0);
-  const totalOut = transactions.filter((t) => t.type === 'debit').reduce((a, t) => a + t.amountKobo, 0);
+  const thisMonth = useMemo(() => summarizeMonth(transactions, 0), [transactions]);
+  const lastMonth = useMemo(() => summarizeMonth(transactions, -1), [transactions]);
+  const spendDelta = percentChange(thisMonth.spending, lastMonth.spending);
+  const budgetRows = useMemo(() => budgetProgress(budgets, transactions).slice(0, 3), [budgets, transactions]);
+  const upcoming = useMemo(
+    () => bills.filter((b) => b.scheduledDate).sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate)).slice(0, 3),
+    [bills],
+  );
+  const firstName = user?.name?.split(' ')[0] || 'there';
 
   return (
-    <div className="dashboard-page">
-      <div className="dashboard-main-content animate-fade-in">
-        <div className="dashboard-container">
-
-          {/* HERO SECTION */}
-          <div className="dashboard-hero glass">
-            <div className="hero-content">
-              <div className="balance-info">
-                <p className="welcome-text">
-                  Welcome back, <span className="text-gradient">{user.name}</span>
-                </p>
-                <p className="label">Primary Account Balance ({primaryAccount?.accountType?.toUpperCase() || 'SAVINGS'})</p>
-                <div className="balance-row">
-                  <h1 className="main-balance">
-                    {loading ? (
-                      <SkeletonLine width="200px" height="2.5rem" />
-                    ) : showBalance ? (
-                      formatCurrency(balanceKobo)
-                    ) : (
-                      '••••••••'
-                    )}
-                  </h1>
-                  <button
-                    className="icon-btn"
-                    onClick={() => setShowBalance(!showBalance)}
-                    aria-label="Toggle balance visibility"
-                  >
-                    {showBalance ? <Eye size={24} /> : <EyeOff size={24} />}
-                  </button>
-                </div>
-                <div className="account-tag">
-                  <span>{accountNumber}</span>
-                  <button onClick={copyToClipboard} className="copy-btn" aria-label="Copy account number">
-                    <Copy size={14} />
-                    {copiedToast && <span className="copy-toast">Copied!</span>}
-                  </button>
-                </div>
-              </div>
-
-              <div className="quick-actions">
-                <button className="action-btn primary" onClick={openModal} aria-label="Send money">
-                  <div className="icon"><Send size={24} /></div>
-                  <span>Send</span>
-                </button>
-                <Link to="/transfers" className="action-btn" aria-label="Transfers page">
-                  <div className="icon"><Zap size={24} /></div>
-                  <span>Transfers</span>
-                </Link>
-                <Link to="/bills" className="action-btn" aria-label="Pay bills">
-                  <div className="icon"><CreditCard size={24} /></div>
-                  <span>Bills</span>
-                </Link>
-                <Link to="/cards" className="action-btn" aria-label="Manage cards">
-                  <div className="icon"><Wallet size={24} /></div>
-                  <span>Cards</span>
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          {/* SYSTEM INTEGRITY BADGE */}
-          <div className="dashboard-system-row">
-            <div className="system-status-pill glass">
-              <ShieldCheck size={16} color={ledgerValid ? '#10b981' : '#ef4444'} />
-              <span>Ledger Verification: <strong>{ledgerValid ? 'Verified (100% Cryptographic Integrity)' : 'Tampered / Invalid'}</strong></span>
-            </div>
-            <button className="text-btn flex-center reset-demo-btn" onClick={resetDemoData} title="Reset all demo data to initial state">
-              <RefreshCw size={14} style={{ marginRight: '4px' }} /> Reset Demo Data
-            </button>
-          </div>
-
-          {/* STAT CARDS */}
-          <div className="dashboard-stats-row">
-            <div className="stat-mini-card glass">
-              <div className="stat-mini-icon income">
-                <TrendingUp size={20} />
-              </div>
-              <div>
-                <p className="stat-mini-label">Total Inflow</p>
-                <p className="stat-mini-value credit">+{formatCompact(totalIn)}</p>
-              </div>
-            </div>
-            <div className="stat-mini-card glass">
-              <div className="stat-mini-icon expense">
-                <TrendingDown size={20} />
-              </div>
-              <div>
-                <p className="stat-mini-label">Total Outflow</p>
-                <p className="stat-mini-value debit">-{formatCompact(totalOut)}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="dashboard-grid">
-            {/* LEFT COLUMN: Charts & Goals */}
-            <div className="dashboard-col main-col">
-              {/* 30-DAY TREND SVG CHART */}
-              <section className="dashboard-section-card glass">
-                <div className="section-header">
-                  <h2>30-Day Balance Trend</h2>
-                  <span className="live-indicator"><span className="dot"></span> Live Ledger</span>
-                </div>
-                <BalanceTrend transactions={transactions} />
-              </section>
-
-              {/* SPENDING BY CATEGORY CHART */}
-              <section className="dashboard-section-card glass">
-                <div className="section-header">
-                  <h2>Spending Breakdown</h2>
-                </div>
-                <SpendingChart transactions={transactions} />
-              </section>
-
-              {/* SAVINGS GOALS */}
-              <section className="dashboard-section-card glass">
-                <div className="section-header">
-                  <h2>Savings Goals</h2>
-                  <button className="text-btn flex-center" onClick={() => toast.info('Goal creation coming soon!')}>
-                    <Plus size={16} style={{ marginRight: '4px' }} />
-                    New Goal
-                  </button>
-                </div>
-                <div className="goals-list">
-                  {savingsGoals.map((goal) => (
-                    <div key={goal.id} className="goal-item">
-                      <div className="goal-info">
-                        <span>{goal.name}</span>
-                        <span>{formatCompact(goal.current)} / {formatCompact(goal.target)}</span>
-                      </div>
-                      <div className="progress-bg">
-                        <div
-                          className="progress-fill"
-                          style={{
-                            width: `${Math.min(100, (goal.current / goal.target) * 100)}%`,
-                            backgroundColor: goal.color,
-                          }}
-                        ></div>
-                      </div>
-                      <p className="goal-percent">{Math.round((goal.current / goal.target) * 100)}% reached</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            </div>
-
-            {/* RIGHT COLUMN: Recent Transactions */}
-            <div className="dashboard-col side-col">
-              <section className="dashboard-section-card glass transactions-card">
-                <div className="section-header">
-                  <h2>Recent Activity</h2>
-                  <Link to="/transactions" className="text-btn flex-center">
-                    View All <ChevronRight size={16} />
-                  </Link>
-                </div>
-                <div className="transactions-list">
-                  {loading ? (
-                    <SkeletonCard />
-                  ) : transactions.length > 0 ? (
-                    transactions.slice(0, 6).map((tx) => (
-                      <div key={tx.id} className="tx-item">
-                        <div className={`tx-icon ${tx.type}`}>
-                          {tx.type === 'credit' ? <ArrowDownLeft size={20} /> : <ArrowUpRight size={20} />}
-                        </div>
-                        <div className="tx-details">
-                          <p className="tx-note">{tx.note}</p>
-                          <p className="tx-category">{tx.category} • {tx.date ? new Date(tx.date).toLocaleDateString() : 'Today'}</p>
-                        </div>
-                        <div className={`tx-amount ${tx.type}`}>
-                          {tx.type === 'credit' ? '+' : '-'}{formatCurrency(tx.amountKobo)}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="empty-state">No transactions yet.</p>
-                  )}
-                </div>
-              </section>
-            </div>
-          </div>
+    <div className="bk-page">
+      <div className="bk-page-head">
+        <div>
+          <h1>{greeting()}, {firstName}</h1>
+          <p>Here's where your money stands today.</p>
         </div>
-
-        <Footer />
+        <span className={`bk-badge ${ledgerValid ? 'good' : 'critical'}`} title="Every balance is checked against its ledger history">
+          {ledgerValid ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />}
+          {ledgerValid ? 'Ledger verified' : 'Ledger mismatch — contact support'}
+        </span>
       </div>
 
-      {/* QUICK TRANSFER MODAL */}
-      {showTransferModal && !showPinModal && (
-        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
-          <div className="modal-content glass">
-            {isSuccess ? (
-              <div className="success-view">
-                <div className="success-icon">
-                  <CircleCheck size={48} color="white" />
-                </div>
-                <h3>Transfer Successful!</h3>
-                <p>Your money has been sent cleanly.</p>
+      {/* Balance hero */}
+      <section className="bk-hero" aria-label="Balance summary">
+        <div className="bk-hero-label">Total balance</div>
+        <div className="bk-hero-amount"><Money kobo={netWorth} /></div>
+        <div className="bk-hero-sub">
+          <Money kobo={totalBalance} /> in accounts · <Money kobo={totalSaved} /> in savings goals
+        </div>
+        <div className="bk-quick">
+          <Link to="/transfers"><Send size={20} />Send</Link>
+          <button type="button" onClick={() => setShowAddMoney(true)}><Plus size={20} />Add money</button>
+          <Link to="/bills"><Receipt size={20} />Pay bills</Link>
+          <Link to="/savings"><PiggyBank size={20} />Save</Link>
+          <Link to="/cards"><CreditCard size={20} />Cards</Link>
+          <Link to="/transactions?statement=1"><FileText size={20} />Statement</Link>
+        </div>
+      </section>
+
+      {/* Accounts */}
+      <div className="bk-grid-2">
+        {accounts.map((a) => (
+          <div key={a.id} className="bk-account">
+            <div className="bk-account-top">
+              <strong>{a.type} account</strong>
+              <span className="bk-badge">{a.currency}</span>
+            </div>
+            <div className="bk-stat-value"><Money kobo={a.balance} /></div>
+            <CopyNumber number={a.number} />
+          </div>
+        ))}
+      </div>
+
+      <div className="bk-grid">
+        <div className="bk-stack">
+          {/* This month */}
+          <section className="bk-card" aria-labelledby="month-h">
+            <div className="bk-card-head">
+              <h2 id="month-h">{new Date().toLocaleDateString(undefined, { month: 'long' })} so far</h2>
+              <Link to="/budgets" className="bk-link">Insights <ChevronRight size={14} /></Link>
+            </div>
+            <div className="bk-grid-3">
+              <div className="bk-stat">
+                <span className="bk-stat-label"><TrendingUp size={14} /> Money in</span>
+                <span className="bk-stat-value"><Money kobo={thisMonth.income} /></span>
+              </div>
+              <div className="bk-stat">
+                <span className="bk-stat-label"><TrendingDown size={14} /> Spent</span>
+                <span className="bk-stat-value"><Money kobo={thisMonth.spending} /></span>
+                <span className="bk-stat-delta">
+                  {spendDelta === null ? 'No data for last month' : `${spendDelta > 0 ? '▲' : '▼'} ${Math.abs(spendDelta)}% vs all of last month`}
+                </span>
+              </div>
+              <div className="bk-stat">
+                <span className="bk-stat-label">Net</span>
+                <span className="bk-stat-value"><Money kobo={thisMonth.net} /></span>
+              </div>
+            </div>
+          </section>
+
+          <section className="bk-card" aria-labelledby="trend-h">
+            <div className="bk-card-head">
+              <h2 id="trend-h">Balance, last 30 days</h2>
+              <span className="bk-subtle">All accounts</span>
+            </div>
+            <BalanceTrend transactions={transactions} currentBalance={totalBalance} />
+          </section>
+
+          <section className="bk-card" aria-labelledby="recent-h">
+            <div className="bk-card-head">
+              <h2 id="recent-h">Recent activity</h2>
+              <Link to="/transactions" className="bk-link">See all <ChevronRight size={14} /></Link>
+            </div>
+            <div className="bk-list">
+              {transactions.length === 0 ? (
+                <Empty icon={History}>No transactions yet.</Empty>
+              ) : (
+                transactions.slice(0, 6).map((tx) => <TxRow key={tx.id} tx={tx} onClick={setSelectedTx} showDate />)
+              )}
+            </div>
+          </section>
+        </div>
+
+        <div className="bk-stack">
+          <section className="bk-card" aria-labelledby="budgets-h">
+            <div className="bk-card-head">
+              <h2 id="budgets-h">Budgets</h2>
+              <Link to="/budgets" className="bk-link">Manage <ChevronRight size={14} /></Link>
+            </div>
+            {budgetRows.length === 0 ? (
+              <Empty icon={TrendingDown}>Set monthly budgets to keep spending on track.</Empty>
+            ) : (
+              <div className="bk-stack" style={{ gap: 14 }}>
+                {budgetRows.map((b) => (
+                  <div key={b.category}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '0.87rem', marginBottom: 6 }}>
+                      <span>
+                        {b.category}
+                        {b.status !== 'good' && (
+                          <span className={`bk-badge ${b.status}`} style={{ marginLeft: 6 }}>
+                            {b.status === 'critical' ? <><OctagonAlert size={11} /> Over</> : <><TriangleAlert size={11} /> Near limit</>}
+                          </span>
+                        )}
+                      </span>
+                      <span className="bk-mono bk-muted" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}><Money kobo={b.spentKobo} /> / <Money kobo={b.limitKobo} /></span>
+                    </div>
+                    <div className={`bk-progress ${b.status}`} role="progressbar" aria-valuenow={Math.round(b.ratio * 100)} aria-valuemin={0} aria-valuemax={100} aria-label={`${b.category} budget used`}>
+                      <div style={{ width: `${Math.min(100, b.ratio * 100)}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="bk-card" aria-labelledby="goals-h">
+            <div className="bk-card-head">
+              <h2 id="goals-h">Savings goals</h2>
+              <Link to="/savings" className="bk-link">View <ChevronRight size={14} /></Link>
+            </div>
+            {goals.length === 0 ? (
+              <div className="bk-center">
+                <Empty icon={PiggyBank}>Start a goal and watch it grow.</Empty>
+                <button type="button" className="bk-btn sm" onClick={() => navigate('/savings')}><Plus size={14} /> New goal</button>
               </div>
             ) : (
-              <>
-                <div className="modal-header">
-                  <h2>Send Money</h2>
-                  <button onClick={closeModal} className="close-btn" aria-label="Close modal">
-                    <X size={24} />
-                  </button>
-                </div>
-
-                {transferError && (
-                  <div className="transfer-error">
-                    <AlertCircle size={16} />
-                    <span>{transferError}</span>
-                  </div>
-                )}
-
-                <form className="transfer-modal-form" onSubmit={initiateTransfer}>
-                  <div className="input-group">
-                    <label>Recipient Account Number</label>
-                    <input
-                      type="text"
-                      name="recipientAccount"
-                      placeholder="e.g. OX1234567890 or 1000000002"
-                      value={form.recipientAccount}
-                      onChange={handleChange}
-                      required
-                    />
-                  </div>
-                  <div className="input-group">
-                    <label>Recipient Name (Optional)</label>
-                    <input
-                      type="text"
-                      name="recipientName"
-                      placeholder="e.g. Alice Smith"
-                      value={form.recipientName}
-                      onChange={handleChange}
-                    />
-                  </div>
-                  <div className="input-group">
-                    <label>Amount (₦)</label>
-                    <input
-                      type="number"
-                      name="amount"
-                      placeholder="0.00"
-                      value={form.amount}
-                      onChange={handleChange}
-                      required
-                      min="1"
-                      step="0.01"
-                    />
-                    {form.amount && parseFloat(form.amount) > 0 && (
-                      <p className="amount-hint">
-                        Available: {formatCurrency(balanceKobo)}
-                      </p>
-                    )}
-                  </div>
-                  <div className="input-group">
-                    <label>Description / Remark</label>
-                    <input
-                      type="text"
-                      name="note"
-                      placeholder="e.g. Lunch, Groceries, Rent"
-                      value={form.note}
-                      onChange={handleChange}
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="btn btn-primary modal-submit flex-center"
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? (
-                      <span className="auth-spinner"></span>
-                    ) : (
-                      <>
-                        <Send size={18} style={{ marginRight: '8px' }} />
-                        Confirm & Send
-                      </>
-                    )}
-                  </button>
-                </form>
-              </>
+              <div className="bk-list">
+                {goals.slice(0, 3).map((g) => {
+                  const pct = Math.min(100, Math.round((g.savedKobo / g.targetKobo) * 100));
+                  return (
+                    <div key={g.id} className="bk-item" style={{ flexWrap: 'wrap' }}>
+                      <span className="bk-goal-icon" aria-hidden="true">{g.icon}</span>
+                      <div className="bk-item-main">
+                        <div className="bk-item-title">{g.name}</div>
+                        <div className="bk-item-sub"><Money kobo={g.savedKobo} /> of <Money kobo={g.targetKobo} /> · {pct}%</div>
+                        <div className="bk-progress" style={{ marginTop: 6 }}><div style={{ width: `${pct}%` }} /></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
-          </div>
-        </div>
-      )}
+          </section>
 
-      {/* PIN MODAL FOR HIGH VALUE TRANSFERS */}
-      {showPinModal && (
-        <PinModal
-          title="Verify Transaction PIN"
-          subtitle={`Enter your 4-digit PIN to authorize ₦${parseFloat(form.amount).toLocaleString()} transfer`}
-          onSubmit={handlePinSubmit}
-          onClose={() => setShowPinModal(false)}
-          isLoading={isSubmitting}
-        />
-      )}
+          <section className="bk-card" aria-labelledby="upcoming-h">
+            <div className="bk-card-head">
+              <h2 id="upcoming-h">Upcoming payments</h2>
+              <Link to="/bills" className="bk-link">Bills <ChevronRight size={14} /></Link>
+            </div>
+            {upcoming.length === 0 ? (
+              <Empty icon={CalendarClock}>No scheduled payments.</Empty>
+            ) : (
+              <div className="bk-list">
+                {upcoming.map((b) => (
+                  <div key={b.id} className="bk-item">
+                    <span className="bk-tx-icon"><CalendarClock size={18} /></span>
+                    <div className="bk-item-main">
+                      <div className="bk-item-title">{b.payee}</div>
+                      <div className="bk-item-sub">
+                        {new Date(b.scheduledDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                        {b.recurring ? ' · Monthly' : ''}
+                      </div>
+                    </div>
+                    <Money kobo={b.amount} className="bk-amt" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+
+      {showAddMoney && <AddMoneyModal accounts={accounts} userId={user.id} onClose={() => setShowAddMoney(false)} onDone={refresh} />}
+      {selectedTx && <TxDetailModal tx={selectedTx} onClose={() => setSelectedTx(null)} />}
     </div>
   );
 };
